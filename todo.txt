@@ -1,0 +1,22 @@
+docker images
+- list all currently loaded Docker images
+
+docker image prune -f
+- delete all untagged dangling images
+
+docker stop exchange1
+- temporarily stops the containers
+
+docker start exchange1
+- restarts the stopped container
+
+docker ps -a
+- To view all containers (even stopped)
+
+docker rm -f exchange1
+- forcefully stops and removes a named container
+
+docker ps -aq | xargs docker rm -f
+- forcefully stops and removes all containers
+
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -q -P "" && cat ~/.ssh/id_ed25519.pub

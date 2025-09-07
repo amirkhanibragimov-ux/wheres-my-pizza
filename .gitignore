@@ -1,0 +1,14 @@
+# Binaries
+wheres-my-pizza
+
+# IDE/editor settings
+.idea/
+.vscode/
+.repomix/
+
+# Mac OS X files
+.DS_Store
+
+# Temporary development files
+repomix-output.txt
+repomix-output.xml
