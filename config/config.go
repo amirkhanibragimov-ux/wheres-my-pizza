@@ -72,6 +72,9 @@ func (c *Config) validate() error {
 	var problems []string
 
 	// DB
+	if c.Database.Port <= 0 || c.Database.Port > 65535 {
+		problems = append(problems, "database.port must be in 1..65535")
+	}
 	if c.Database.User == "" {
 		problems = append(problems, "database.user is required")
 	}
@@ -81,19 +84,16 @@ func (c *Config) validate() error {
 	if c.Database.Name == "" {
 		problems = append(problems, "database.database (name) is required")
 	}
-	if c.Database.Port <= 0 || c.Database.Port > 65535 {
-		problems = append(problems, "database.port must be in 1..65535")
-	}
 
 	// RabbitMQ
+	if c.RabbitMQ.Port <= 0 || c.RabbitMQ.Port > 65535 {
+		problems = append(problems, "rabbitmq.port must be in 1..65535")
+	}
 	if c.RabbitMQ.User == "" {
 		problems = append(problems, "rabbitmq.user is required")
 	}
 	if c.RabbitMQ.Password == "" {
 		problems = append(problems, "rabbitmq.password is required")
-	}
-	if c.RabbitMQ.Port <= 0 || c.RabbitMQ.Port > 65535 {
-		problems = append(problems, "rabbitmq.port must be in 1..65535")
 	}
 
 	if len(problems) > 0 {
