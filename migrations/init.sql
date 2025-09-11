@@ -29,7 +29,7 @@ CREATE TABLE workers (
     created_at        TIMESTAMPTZ NOT NULL    DEFAULT NOW(),
     name              TEXT        UNIQUE NOT NULL,
     type              TEXT        NOT NULL,
-    status            TEXT        DEFAULT 'online' CHECK (status IN ('online','offline')),
+    status            TEXT        NOT NULL DEFAULT 'online' CHECK (status IN ('online','offline')),
     last_seen         TIMESTAMPTZ DEFAULT current_timestamp,
     orders_processed  INTEGER     DEFAULT 0
 );
