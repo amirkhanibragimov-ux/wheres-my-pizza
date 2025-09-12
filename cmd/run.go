@@ -25,7 +25,7 @@ func Run() {
 
 	pool, err := postgres.NewPool(ctx, cfg)
 	if err != nil {
-		log.Fatal("db connect: %v", err)
+		log.Fatalf("db connect: %v", err)
 	}
 	defer pool.Close()
 
