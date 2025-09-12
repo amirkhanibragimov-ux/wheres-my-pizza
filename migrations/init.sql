@@ -63,7 +63,6 @@ CREATE TABLE orders (
 
     CONSTRAINT orders_delivery_no_table_ck
     CHECK (NOT (type = 'delivery' AND table_number IS NOT NULL))
-
 );
 
 
