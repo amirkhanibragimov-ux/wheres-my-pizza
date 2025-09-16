@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/ports"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -20,7 +21,7 @@ type UnitOfWork struct {
 }
 
 // NewUnitOfWork constructs a UnitOfWork bound to the given pool.
-func NewUnitOfWork(pool *pgxpool.Pool) *UnitOfWork {
+func NewUnitOfWork(pool *pgxpool.Pool) ports.UnitOfWork {
 	return &UnitOfWork{pool: pool}
 }
 

@@ -25,7 +25,6 @@ type OrderRepository interface {
 
 // Workers repository controls registration, heartbeat, counters.
 type WorkerRepository interface {
-	// RegisterOnline inserts or revives an offline record; returns (ok=false) if duplicate online exists.
 	RegisterOnline(ctx context.Context, name, typ string) (ok bool, err error)
 	MarkOffline(ctx context.Context, name string) error
 	Heartbeat(ctx context.Context, name string, when time.Time) error

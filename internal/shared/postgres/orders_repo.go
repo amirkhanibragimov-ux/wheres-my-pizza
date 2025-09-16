@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/domain/orders"
+	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/ports"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -12,23 +13,18 @@ import (
 type OrdersRepo struct{}
 
 // NewOrdersRepo constructs a new OrdersRepo.
-func NewOrdersRepo() *OrdersRepo { return &OrdersRepo{} }
+func NewOrdersRepo() ports.OrderRepository {
+	return &OrdersRepo{}
+}
 
 // CreateOrder inserts the order header, its items, and an initial 'received' status log.
-// MUST be called inside UnitOfWork.WithinTx (will error otherwise).
-// Assumptions (align with your schema):
-//   - o.Number is already set (e.g., "ORD_YYYYMMDD_NNN") and unique.
-//   - Monetary fields in Go are integer cents; SQL divides by 100 into DECIMAL.
-//   - o.Status will be 'received' at creation time.
-//
-// On success, it fills o.ID, o.CreatedAt, o.UpdatedAt (and each item's OrderID).
 func (r *OrdersRepo) CreateOrder(ctx context.Context, order *orders.Order) error {
 	tx, err := MustTxFromContext(ctx)
 	if err != nil {
 		return err
 	}
 
-	// note: total_amount is DECIMAL(10,2) in DB; we send integer cents and divide by 100 in SQL.
+	// note: total_amount is NUMERIC(10,2) in DB; we send integer cents and divide by 100 in SQL.
 	var status string
 	err = tx.QueryRow(ctx, `
 		INSERT INTO orders (number, customer_name, type, table_number, delivery_address, total_amount, priority, status)

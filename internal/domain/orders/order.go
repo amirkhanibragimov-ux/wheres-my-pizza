@@ -80,8 +80,8 @@ func PriorityFromTotal(total Money) int {
 }
 
 // RoutingKey builds "kitchen.{order_type}.{priority}".
-func (o Order) RoutingKey() string {
-	return "kitchen." + string(o.Type) + "." + itoa(o.Priority)
+func (order Order) RoutingKey() string {
+	return "kitchen." + string(order.Type) + "." + itoa(order.Priority)
 }
 
 // SumTotal recomputes total from items.
