@@ -18,7 +18,7 @@ CREATE TYPE order_status AS ENUM ('received', 'cooking', 'ready', 'completed', '
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-    NEW.updated_at := now();
+    NEW.updated_at := NOW();
     RETURN NEW;
 END; $$;
 
@@ -45,15 +45,15 @@ CREATE TABLE orders (
     type              TEXT          NOT NULL CHECK (type IN ('dine_in', 'takeout', 'delivery')),
     table_number      INTEGER,
     delivery_address  TEXT,
-    total_amount      DECIMAL(10,2) NOT NULL CHECK (total_amount >= 0.01),
+    total_amount      NUMERIC(10,2) NOT NULL CHECK (total_amount >= 0.01),
     priority          INTEGER       DEFAULT 1 CHECK (priority IN (1,5,10)),
     status            order_status  NOT NULL    DEFAULT 'received',
     processed_by      TEXT,
     completed_at      TIMESTAMPTZ,
 
-    -- encode domain invariants
+    -- encode table invariants
     CONSTRAINT orders_dinein_table_ck
-    CHECK (type <> 'dine_in' OR (table_number IS NOT NULL BETWEEN 1 AND 100)),
+    CHECK (type <> 'dine_in' OR (table_number IS NOT NULL AND table_number BETWEEN 1 AND 100)),
 
     CONSTRAINT orders_delivery_address_ck
     CHECK (type <> 'delivery' OR (delivery_address IS NOT NULL AND LENGTH(delivery_address) >= 10)),
@@ -62,7 +62,21 @@ CREATE TABLE orders (
     CHECK (NOT (type = 'dine_in' AND delivery_address IS NOT NULL)),
 
     CONSTRAINT orders_delivery_no_table_ck
-    CHECK (NOT (type = 'delivery' AND table_number IS NOT NULL))
+    CHECK (NOT (type = 'delivery' AND table_number IS NOT NULL)),
+
+    CONSTRAINT orders_takeout_neither_table_nor_address_ck
+    CHECK (type <> 'takeout' OR (table_number IS NULL AND delivery_address IS NULL)),
+
+    CONSTRAINT orders_number_fmt_ck
+    CHECK (number ~ '^ORD_[0-9]{8}_[0-9]{3}$')
+
+);
+
+
+-- Create a table for a per-day order number counter (UTC day)
+CREATE TABLE order_number_seq (
+  day date PRIMARY KEY,
+  n   integer NOT NULL
 );
 
 
@@ -79,7 +93,7 @@ CREATE TABLE order_items (
     order_id    INTEGER       REFERENCES orders(id) ON DELETE CASCADE,
     name        TEXT          NOT NULL,
     quantity    INTEGER       NOT NULL CHECK (quantity >= 1),
-    price       DECIMAL(8,2)  NOT NULL CHECK (price >= 0.01)
+    price       NUMERIC(8,2)  NOT NULL CHECK (price >= 0.01)
 );
 
 
