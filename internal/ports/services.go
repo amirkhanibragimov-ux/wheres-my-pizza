@@ -3,7 +3,10 @@ package ports
 import (
 	"context"
 	"time"
-	"your/module/internal/domain"
+
+	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/domain/orders"
+	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/domain/workers"
+	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/contracts"
 )
 
 // Application services (pure orchestrators over repos + bus). Implement in /internal/app/*.
@@ -15,7 +18,7 @@ type OrderService interface {
 
 type CreateOrderCommand struct {
 	CustomerName    string
-	Type            domain.OrderType
+	Type            orders.OrderType
 	TableNumber     *int
 	DeliveryAddress *string
 	Items           []ItemInput
@@ -24,13 +27,13 @@ type CreateOrderCommand struct {
 type ItemInput struct {
 	Name     string
 	Quantity int
-	Price    domain.Money
+	Price    orders.Money
 }
 
 type OrderPlaced struct {
 	OrderNumber string
-	Status      domain.OrderStatus
-	TotalAmount domain.Money
+	Status      orders.OrderStatus
+	TotalAmount orders.Money
 	Priority    int
 }
 
@@ -40,8 +43,8 @@ type KitchenService interface {
 	// - set cooking (CAS from received) + log + publish status
 	// - simulate cooking time (returned value tells adapter how long to sleep)
 	// - set ready + log + publish status
-	StartCooking(ctx context.Context, workerName string, msg domain.OrderMessage, now time.Time) (cookFor time.Duration, err error)
-	FinishCooking(ctx context.Context, workerName string, msg domain.OrderMessage, startedAt time.Time, now time.Time) error
+	StartCooking(ctx context.Context, workerName string, msg contracts.OrderMessage, now time.Time) (cookFor time.Duration, err error)
+	FinishCooking(ctx context.Context, workerName string, msg contracts.OrderMessage, startedAt time.Time, now time.Time) error
 }
 
 // WorkerService for lifecycle and heartbeats.
@@ -54,13 +57,13 @@ type WorkerService interface {
 // TrackingService powers GET /orders/* and /workers/status.
 type TrackingService interface {
 	GetOrderStatus(ctx context.Context, number string) (*OrderStatusView, error)
-	GetOrderHistory(ctx context.Context, number string) ([]domain.StatusLog, error)
+	GetOrderHistory(ctx context.Context, number string) ([]orders.StatusLog, error)
 	ListWorkers(ctx context.Context, offlineIfOlderThan time.Duration, now time.Time) ([]WorkerView, error)
 }
 
 type OrderStatusView struct {
 	OrderNumber         string
-	CurrentStatus       domain.OrderStatus
+	CurrentStatus       orders.OrderStatus
 	UpdatedAt           *time.Time
 	EstimatedCompletion *time.Time
 	ProcessedBy         *string
@@ -68,7 +71,7 @@ type OrderStatusView struct {
 
 type WorkerView struct {
 	WorkerName      string
-	Status          domain.WorkerStatus
+	Status          workers.WorkerStatus
 	OrdersProcessed int
 	LastSeen        *time.Time
 }

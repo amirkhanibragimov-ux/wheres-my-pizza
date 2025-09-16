@@ -35,7 +35,7 @@ type Logger struct {
 }
 
 // New creates a new structured logger.
-func New(service string) *Logger {
+func NewLogger(service string) *Logger {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "unknown"

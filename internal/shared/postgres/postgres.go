@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"git.platform.alem.school/amibragim/wheres-my-pizza/config"
+	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/config"
 )
 
 // NewPool builds a DSN from cfg, configures pgxpool, verifies connectivity, and returns the pool.

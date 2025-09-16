@@ -1,4 +1,4 @@
-package domain
+package orders
 
 import "time"
 
@@ -87,7 +87,7 @@ func (o Order) RoutingKey() string {
 // SumTotal recomputes total from items.
 func (order *Order) SumTotal() {
 	var sum Money
-	for _, it := range o.Items {
+	for _, it := range order.Items {
 		sum += Money(it.Quantity) * it.Price
 	}
 	order.TotalAmount = sum

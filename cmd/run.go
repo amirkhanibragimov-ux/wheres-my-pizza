@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"git.platform.alem.school/amibragim/wheres-my-pizza/config"
-	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/adapter/postgres"
+	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/config"
+	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/postgres"
 )
 
 func Run() {

@@ -80,7 +80,7 @@ Services (modes):
 
 Examples:
   ./restaurant-system --mode=order-service --port=3000 --max-concurrent=50
-  ./restaurant-system --mode=kitchen-worker --worker-name=chef1 --order-types=dine_in --heartbeat- --prefetch=4
+  ./restaurant-system --mode=kitchen-worker --worker-name=chef1 --order-types=dine_in --heartbeat-45 --prefetch=4
   ./restaurant-system --mode=tracking-service --port=3002
   ./restaurant-system --mode=notification-subscriber`)
 

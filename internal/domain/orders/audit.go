@@ -1,6 +1,8 @@
-package domain
+package orders
 
-import "time"
+import (
+	"time"
+)
 
 type StatusLog struct {
 	ID        int64
