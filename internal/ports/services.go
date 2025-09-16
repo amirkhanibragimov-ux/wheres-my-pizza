@@ -9,7 +9,7 @@ import (
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/contracts"
 )
 
-// Application services (pure orchestrators over repos + bus). Implement in /internal/app/*.
+// Application services (pure orchestrators over repos + bus). Implemented in /internal/app/*.
 
 // OrderService handles POST /orders flow: validate → total → priority → number → tx insert → publish.
 type OrderService interface {

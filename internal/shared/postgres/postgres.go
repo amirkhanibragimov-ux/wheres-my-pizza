@@ -21,16 +21,11 @@ func NewPool(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
 		Scheme: "postgres",
 		Host:   net.JoinHostPort(cfg.Database.Host, strconv.Itoa(cfg.Database.Port)),
 		Path:   cfg.Database.Name, // database name
+		User:   url.UserPassword(cfg.Database.User, cfg.Database.Password),
 	}
 
-	u.User = url.UserPassword(cfg.Database.User, cfg.Database.Password)
-
-	q := u.Query()
-	u.RawQuery = q.Encode()
-	dsn := u.String()
-
 	// parse pgxpool config
-	pcfg, err := pgxpool.ParseConfig(dsn)
+	pcfg, err := pgxpool.ParseConfig(u.String())
 	if err != nil {
 		return nil, fmt.Errorf("pgxpool.ParseConfig: %w", err)
 	}

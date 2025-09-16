@@ -13,16 +13,10 @@ type UnitOfWork interface {
 	WithinTx(ctx context.Context, fn func(ctx context.Context) error) error
 }
 
-// Sequencer ensures ORD_YYYYMMDD_NNN is unique and resets daily (transactional).
-type OrderNumberSequencer interface {
-	NextOrderNumber(ctx context.Context, dayUTC time.Time) (string, error)
-}
-
 // Orders repository coordinates orders + items. The creation MUST also insert initial status log 'received'.
 type OrderRepository interface {
 	CreateOrder(ctx context.Context, o *orders.Order) error
 	GetByNumber(ctx context.Context, number string) (*orders.Order, error)
-	// Compare-and-set status to enforce idempotency and legal transitions.
 	UpdateStatusCAS(ctx context.Context, number string, expected orders.OrderStatus, next orders.OrderStatus, changedBy string, notes *string) (applied bool, err error)
 	SetProcessedBy(ctx context.Context, number string, worker string) error
 	SetCompletedAt(ctx context.Context, number string, t time.Time) error
