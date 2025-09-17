@@ -24,12 +24,14 @@ func (r *OrdersRepo) CreateOrder(ctx context.Context, order *orders.Order) error
 		return err
 	}
 
-	// note: total_amount is NUMERIC(10,2) in DB; we send integer cents and divide by 100 in SQL.
+	// insert new order into database
+	// note: total_amount is NUMERIC(10,2) in DB; we send integer cents and divide by 100 in SQL
 	var status string
 	err = tx.QueryRow(ctx, `
 		INSERT INTO orders (number, customer_name, type, table_number, delivery_address, total_amount, priority, status)
 		VALUES ($1, $2, $3, $4, $5, $6::numeric/100, $7, 'received')
-		RETURNING id, created_at, updated_at, status`,
+		RETURNING id, created_at, updated_at, status
+		`,
 		order.Number,
 		order.CustomerName,
 		order.Type,            // TEXT with check ('dine_in','takeout','delivery')
@@ -43,8 +45,8 @@ func (r *OrdersRepo) CreateOrder(ctx context.Context, order *orders.Order) error
 	}
 	order.Status = orders.OrderStatus(status)
 
-	// Insert items (price is DECIMAL(8,2) in DB).
-	// We pass integer cents and divide by 100 in SQL to avoid floating errors.
+	// insert order items into database
+	// note: price is NUMERIC(10,2) in DB; we send integer cents and divide by 100 in SQL
 	for i := range order.Items {
 		it := &order.Items[i]
 		_, err = tx.Exec(ctx, `
@@ -62,14 +64,13 @@ func (r *OrdersRepo) CreateOrder(ctx context.Context, order *orders.Order) error
 		it.OrderID = order.ID
 	}
 
-	// Initial status log ('received' by system at now()).
+	// insert initial status log into database
 	_, err = tx.Exec(ctx, `
 		INSERT INTO order_status_log (order_id, status, changed_by, changed_at, notes)
-		VALUES ($1, 'received', $2, $3, NULL)
+		VALUES ($1, 'received', $2, now(), NULL)
 	`,
 		order.ID,
-		"system",
-		time.Now().UTC(),
+		"order-service",
 	)
 	return err
 }
@@ -82,17 +83,21 @@ func (r *OrdersRepo) GetByNumber(ctx context.Context, number string) (*orders.Or
 	}
 
 	var order orders.Order
+	var typeStr string
+	var status string
 	err = tx.QueryRow(ctx, `
 		SELECT id, number, customer_name, type, table_number, delivery_address, total_amount::numeric*100, priority, status, created_at, updated_at
 		FROM orders
 		WHERE number = $1
 	`, number).Scan(
 		&order.ID, &order.Number, &order.CustomerName, &order.Type, &order.TableNumber, &order.DeliveryAddress,
-		&order.TotalAmount, &order.Priority, &order.Status, &order.CreatedAt, &order.UpdatedAt,
+		&order.TotalAmount, &order.Priority, &status, &order.CreatedAt, &order.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
+	order.Type = orders.OrderType(typeStr)
+	order.Status = orders.OrderStatus(status)
 
 	rows, err := tx.Query(ctx, `
 		SELECT id, name, quantity, price::numeric*100
@@ -113,37 +118,50 @@ func (r *OrdersRepo) GetByNumber(ctx context.Context, number string) (*orders.Or
 		order.Items = append(order.Items, item)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return &order, nil
 }
 
-// UpdateStatusCAS updates the order status using a compare-and-swap approach.
-func (r *OrdersRepo) UpdateStatusCAS(ctx context.Context, number string, expected, next orders.OrderStatus, changedBy string, notes *string) (bool, error) {
+// UpdateStatusCAS atomically changes status from expected->next and writes a history row.
+func (r *OrdersRepo) UpdateStatusCAS(
+	ctx context.Context,
+	number string,
+	expected, next orders.OrderStatus,
+	changedBy string,
+	notes *string,
+) (bool, error) {
 	tx, err := MustTxFromContext(ctx)
 	if err != nil {
 		return false, err
 	}
 
-	var updated bool
+	// One round-trip:
+	// 1) UPDATE orders ... WHERE number=$2 AND status=$3 RETURNING id     -> upd
+	// 2) INSERT INTO order_status_log (...) SELECT id FROM upd            -> ins
+	// 3) SELECT EXISTS(SELECT 1 FROM ins) tells us if the transition happened
+	var ok bool
 	err = tx.QueryRow(ctx, `
-		UPDATE orders
-		SET status = $1, updated_at = now()
-		WHERE number = $2 AND status = $3
-		RETURNING true
-	`, next, number, expected).Scan(&updated)
-	if err == pgx.ErrNoRows {
-		return false, nil
-	}
+		WITH upd AS (
+			UPDATE orders
+			SET status = $1, updated_at = now()
+			WHERE number = $2 AND status = $3
+			RETURNING id
+		),
+		ins AS (
+			INSERT INTO order_status_log (order_id, status, changed_by, changed_at, notes)
+			SELECT id, $1, $4, now(), $5
+			FROM upd
+			RETURNING 1
+		)
+		SELECT EXISTS (SELECT 1 FROM ins);
+	`, next, number, expected, changedBy, notes).Scan(&ok)
 	if err != nil {
 		return false, err
 	}
-
-	_, err = tx.Exec(ctx, `
-		INSERT INTO order_status_log (order_id, status, changed_by, changed_at, notes)
-		SELECT id, $1, $2, now(), $3
-		FROM orders
-		WHERE number = $4
-	`, next, changedBy, notes, number)
-	return updated, err
+	return ok, nil
 }
 
 // SetProcessedBy sets the worker who is processing the order.
@@ -202,6 +220,10 @@ func (r *OrdersRepo) ListHistory(ctx context.Context, orderNumber string) ([]ord
 			return nil, err
 		}
 		history = append(history, log)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return history, nil
