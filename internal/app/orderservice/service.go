@@ -35,9 +35,18 @@ func New(uow ports.UnitOfWork, repo ports.OrderRepository) *Service {
 // which we can wire up later; for now, this retry strategy avoids SQL
 // in the service layer and stays within the existing ports. (See TODO.)
 func (s *Service) PlaceOrder(ctx context.Context, cmd ports.CreateOrderCommand) (ports.OrderPlaced, error) {
-	// Basic validation (mirror DB constraints early; keep messages user-friendly).
-	if len(cmd.Items) == 0 {
-		return ports.OrderPlaced{}, errors.New("order must contain at least one item")
+	// basic validation
+	if len(cmd.Items) < 1 || len(cmd.Items) > 20 {
+		return ports.OrderPlaced{}, errors.New("order must contain between 1 and 20 items")
+	}
+
+	if len(cmd.CustomerName) < 1 || len(cmd.CustomerName) > 100 {
+		return ports.OrderPlaced{}, errors.New("customer_name must be 1-100 characters long")
+	}
+
+	re := regexp.MustCompile(`^[A-Za-z][A-Za-z '-]{0,99}$`)
+	if !re.MatchString(cmd.CustomerName) {
+		return false, errors.New("customer_name must not contain special characters")
 	}
 
 	// validate type-specific fields

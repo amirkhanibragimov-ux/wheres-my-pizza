@@ -138,16 +138,44 @@ func (r *OrdersRepo) UpdateStatusCAS(
 		return false, err
 	}
 
-	// One round-trip:
-	// 1) UPDATE orders ... WHERE number=$2 AND status=$3 RETURNING id     -> upd
-	// 2) INSERT INTO order_status_log (...) SELECT id FROM upd            -> ins
-	// 3) SELECT EXISTS(SELECT 1 FROM ins) tells us if the transition happened
+	// read current status (and lock the row so concurrent transitions serialize).
+	var (
+		orderID int64
+		current orders.OrderStatus
+	)
+
+	err = tx.QueryRow(ctx, `
+		SELECT id, status
+		FROM orders
+		WHERE number = $1
+		FOR UPDATE
+	`, number).Scan(&orderID, &current)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, ErrNotFound // define at ports level
+		}
+		return false, err
+	}
+
+	// idempotent success if already at next
+	if current == next {
+		return true, nil
+	}
+
+	// enforce lifecycle rules
+	if !orders.CanTransition(current, next) {
+		return false, nil
+	}
+
+	// one round-trip for UPDATE + history insert; this only runs when current!=next
 	var ok bool
 	err = tx.QueryRow(ctx, `
 		WITH upd AS (
 			UPDATE orders
-			SET status = $1, updated_at = now()
-			WHERE number = $2 AND status = $3
+			SET    status = $1,
+			       updated_at = now()
+			WHERE  id = $2
+			AND    status = $3 
 			RETURNING id
 		),
 		ins AS (
@@ -156,11 +184,12 @@ func (r *OrdersRepo) UpdateStatusCAS(
 			FROM upd
 			RETURNING 1
 		)
-		SELECT EXISTS (SELECT 1 FROM ins);
-	`, next, number, expected, changedBy, notes).Scan(&ok)
+		SELECT EXISTS (SELECT 1 FROM ins)
+	`, next, orderID, current, changedBy, notes).Scan(&ok)
 	if err != nil {
 		return false, err
 	}
+
 	return ok, nil
 }
 
@@ -188,7 +217,7 @@ func (r *OrdersRepo) SetCompletedAt(ctx context.Context, orderNumber string, t t
 
 	_, err = tx.Exec(ctx, `
 		UPDATE orders
-		SET completed_at = $1, updated_at = now()
+		SET completed_at = $1, updated_at = now()	
 		WHERE number = $2
 	`, t, orderNumber)
 	return err

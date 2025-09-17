@@ -30,7 +30,7 @@ CREATE TABLE workers (
     name              TEXT        UNIQUE NOT NULL,
     type              TEXT        NOT NULL,
     status            TEXT        NOT NULL DEFAULT 'online' CHECK (status IN ('online','offline')),
-    last_seen         TIMESTAMPTZ DEFAULT current_timestamp,
+    last_seen         TIMESTAMPTZ DEFAULT NOW(),
     orders_processed  INTEGER     DEFAULT 0
 );
 
@@ -104,7 +104,7 @@ CREATE TABLE order_status_log (
     order_id    INTEGER       NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     status      order_status  NOT NULL, 
     changed_by  TEXT,
-    changed_at  TIMESTAMPTZ   DEFAULT current_timestamp,
+    changed_at  TIMESTAMPTZ   DEFAULT NOW(),
     notes       TEXT
 );
 
