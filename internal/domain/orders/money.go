@@ -9,3 +9,5 @@ type Money int64
 func NewMoneyFromFloat2(f float64) Money {
 	return Money(math.Round(f * 100.0))
 }
+
+func (m Money) ToFloat2() float64 { return float64(m) / 100.0 }

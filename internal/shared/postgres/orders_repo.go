@@ -19,7 +19,7 @@ func NewOrdersRepo() ports.OrderRepository {
 }
 
 // CreateOrder inserts the order header, its items, and an initial 'received' status log.
-func (r *OrdersRepo) CreateOrder(ctx context.Context, order *orders.Order) error {
+func (repo *OrdersRepo) CreateOrder(ctx context.Context, order *orders.Order) error {
 	tx, err := MustTxFromContext(ctx)
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ func (r *OrdersRepo) CreateOrder(ctx context.Context, order *orders.Order) error
 }
 
 // GetByNumber retrieves an order by its unique number, including its items and current status.
-func (r *OrdersRepo) GetByNumber(ctx context.Context, number string) (*orders.Order, error) {
+func (repo *OrdersRepo) GetByNumber(ctx context.Context, number string) (*orders.Order, error) {
 	tx, err := MustTxFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -87,11 +87,11 @@ func (r *OrdersRepo) GetByNumber(ctx context.Context, number string) (*orders.Or
 	var typeStr string
 	var status string
 	err = tx.QueryRow(ctx, `
-		SELECT id, number, customer_name, type, table_number, delivery_address, total_amount::numeric*100, priority, status, created_at, updated_at
+		SELECT id, number, customer_name, type, table_number, delivery_address, total_amount::bigint*100, priority, status, created_at, updated_at
 		FROM orders
 		WHERE number = $1
 	`, number).Scan(
-		&order.ID, &order.Number, &order.CustomerName, &order.Type, &order.TableNumber, &order.DeliveryAddress,
+		&order.ID, &order.Number, &order.CustomerName, &typeStr, &order.TableNumber, &order.DeliveryAddress,
 		&order.TotalAmount, &order.Priority, &status, &order.CreatedAt, &order.UpdatedAt,
 	)
 	if err != nil {
@@ -101,7 +101,7 @@ func (r *OrdersRepo) GetByNumber(ctx context.Context, number string) (*orders.Or
 	order.Status = orders.OrderStatus(status)
 
 	rows, err := tx.Query(ctx, `
-		SELECT id, name, quantity, price::numeric*100
+		SELECT id, name, quantity, price::bigint*100
 		FROM order_items
 		WHERE order_id = $1
 	`, order.ID)
@@ -127,7 +127,7 @@ func (r *OrdersRepo) GetByNumber(ctx context.Context, number string) (*orders.Or
 }
 
 // UpdateStatusCAS atomically changes status from expected->next and writes a history row.
-func (r *OrdersRepo) UpdateStatusCAS(
+func (repo *OrdersRepo) UpdateStatusCAS(
 	ctx context.Context,
 	number string,
 	expected, next orders.OrderStatus,
@@ -195,7 +195,7 @@ func (r *OrdersRepo) UpdateStatusCAS(
 }
 
 // SetProcessedBy sets the worker who is processing the order.
-func (r *OrdersRepo) SetProcessedBy(ctx context.Context, number string, worker string) error {
+func (repo *OrdersRepo) SetProcessedBy(ctx context.Context, number string, worker string) error {
 	tx, err := MustTxFromContext(ctx)
 	if err != nil {
 		return err
@@ -210,7 +210,7 @@ func (r *OrdersRepo) SetProcessedBy(ctx context.Context, number string, worker s
 }
 
 // SetCompletedAt sets the completion timestamp for an order.
-func (r *OrdersRepo) SetCompletedAt(ctx context.Context, orderNumber string, t time.Time) error {
+func (repo *OrdersRepo) SetCompletedAt(ctx context.Context, orderNumber string, t time.Time) error {
 	tx, err := MustTxFromContext(ctx)
 	if err != nil {
 		return err
@@ -225,7 +225,7 @@ func (r *OrdersRepo) SetCompletedAt(ctx context.Context, orderNumber string, t t
 }
 
 // ListHistory retrieves the status change history for an order.
-func (r *OrdersRepo) ListHistory(ctx context.Context, orderNumber string) ([]orders.StatusLog, error) {
+func (repo *OrdersRepo) ListHistory(ctx context.Context, orderNumber string) ([]orders.StatusLog, error) {
 	tx, err := MustTxFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -257,4 +257,24 @@ func (r *OrdersRepo) ListHistory(ctx context.Context, orderNumber string) ([]ord
 	}
 
 	return history, nil
+}
+
+// NextOrderSeq reserves and returns the next sequence number (n) for the given UTC day.
+func (repo *OrdersRepo) NextOrderSeq(ctx context.Context, day time.Time) (int, error) {
+	tx, err := MustTxFromContext(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	// use an UPSERT to create or increment a per-day sequence counter.
+	var n int
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_number_seq(day, n)
+		VALUES ($1::date, 1)
+		ON CONFLICT (day) DO UPDATE SET n = order_number_seq.n + 1
+		RETURNING n;
+	`, day.UTC().Format("2006-01-02")).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
 }

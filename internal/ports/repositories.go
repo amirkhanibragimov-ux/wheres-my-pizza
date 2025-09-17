@@ -21,6 +21,7 @@ type OrderRepository interface {
 	SetProcessedBy(ctx context.Context, number string, worker string) error
 	SetCompletedAt(ctx context.Context, number string, t time.Time) error
 	ListHistory(ctx context.Context, number string) ([]orders.StatusLog, error)
+	NextOrderSeq(ctx context.Context, day time.Time) (int, error)
 }
 
 // Workers repository controls registration, heartbeat, counters.
