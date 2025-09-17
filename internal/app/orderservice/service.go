@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -46,7 +47,7 @@ func (s *Service) PlaceOrder(ctx context.Context, cmd ports.CreateOrderCommand) 
 
 	re := regexp.MustCompile(`^[A-Za-z][A-Za-z '-]{0,99}$`)
 	if !re.MatchString(cmd.CustomerName) {
-		return false, errors.New("customer_name must not contain special characters")
+		return ports.OrderPlaced{}, errors.New("customer_name must not contain special characters")
 	}
 
 	// validate type-specific fields
@@ -89,16 +90,16 @@ func (s *Service) PlaceOrder(ctx context.Context, cmd ports.CreateOrderCommand) 
 	var placed ports.OrderPlaced
 	err := s.uow.WithinTx(ctx, func(txCtx context.Context) error {
 		now := time.Now().UTC()
-		// Build the aggregate.
-		var o orders.Order
-		o.CustomerName = cmd.CustomerName
-		o.Type = cmd.Type
-		o.TableNumber = cmd.TableNumber
-		o.DeliveryAddress = cmd.DeliveryAddress
-		o.Items = make([]orders.OrderItem, len(cmd.Items))
+		// build the aggregate
+		var order orders.Order
+		order.CustomerName = cmd.CustomerName
+		order.Type = cmd.Type
+		order.TableNumber = cmd.TableNumber
+		order.DeliveryAddress = cmd.DeliveryAddress
+		order.Items = make([]orders.OrderItem, len(cmd.Items))
 		for i := range cmd.Items {
 			in := cmd.Items[i]
-			o.Items[i] = orders.OrderItem{
+			order.Items[i] = orders.OrderItem{
 				Name:     in.Name,
 				Quantity: in.Quantity,
 				Price:    in.Price,
@@ -106,21 +107,21 @@ func (s *Service) PlaceOrder(ctx context.Context, cmd ports.CreateOrderCommand) 
 		}
 
 		// Compute totals & priority using your domain helper.
-		o.SumTotal()
-		o.Priority = orders.PriorityFromTotal(o.TotalAmount) // 1/5/10 per thresholds :contentReference[oaicite:3]{index=3}
+		order.SetTotalAmount()
+		order.SetPriorityFromTotalAmount()
 
 		// Assign an order number with retries on unique violation.
 		const maxAttempts = 6
 		for attempt := 0; attempt < maxAttempts; attempt++ {
-			o.Number = makeOrderNumber(now, attempt)
-			err := s.repo.CreateOrder(txCtx, &o)
+			order.Number = makeOrderNumber(now, attempt)
+			err := s.repo.CreateOrder(txCtx, &order)
 			if err == nil {
 				// Repo sets initial status to 'received' and returns it. :contentReference[oaicite:4]{index=4}
 				placed = ports.OrderPlaced{
-					OrderNumber: o.Number,
-					Status:      o.Status,
-					TotalAmount: o.TotalAmount,
-					Priority:    o.Priority,
+					OrderNumber: order.Number,
+					Status:      order.Status,
+					TotalAmount: order.TotalAmount,
+					Priority:    order.Priority,
 				}
 				return nil
 			}

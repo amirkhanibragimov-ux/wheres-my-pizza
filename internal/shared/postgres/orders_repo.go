@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/domain/orders"
@@ -152,7 +153,7 @@ func (r *OrdersRepo) UpdateStatusCAS(
 	`, number).Scan(&orderID, &current)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return false, ErrNotFound // define at ports level
+			return false, errors.New("order not found")
 		}
 		return false, err
 	}
