@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"git.platform.alem.school/amibragim/wheres-my-pizza/cmd/orderservice"
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/cli"
 )
 
@@ -64,8 +65,10 @@ func main() {
 			os.Exit(2)
 		}
 
-		// TODO: orderservice.Run(ctx, opts{Port:*port, MaxConcurrent:*maxConc})
-		fmt.Printf("[DRY-RUN] %s: port=%d max-concurrent=%d\n", cli.ModeOrder, *port, *maxConc)
+		if err := orderservice.Run(ctx, *port, *maxConc); err != nil {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+			os.Exit(1)
+		}
 
 	case cli.ModeKitchen:
 		fs := flag.NewFlagSet(cli.ModeKitchen, flag.ContinueOnError)
