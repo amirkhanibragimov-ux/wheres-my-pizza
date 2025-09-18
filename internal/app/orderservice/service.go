@@ -13,19 +13,29 @@ import (
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/logger"
 )
 
+type Publisher interface {
+	Publish(exchange, routingKey string, body []byte, priority uint8) error
+}
+
 // Service implements ports.OrderService.
 type Service struct {
-	uow    ports.UnitOfWork
-	repo   ports.OrderRepository
-	logger *logger.Logger
+	uow       ports.UnitOfWork
+	repo      ports.OrderRepository
+	logger    *logger.Logger
+	publisher Publisher
 }
 
 // Ensure Service implements the interface at compile time.
 var _ ports.OrderService = (*Service)(nil)
 
 // New creates a new OrderService with the required dependencies.
-func New(uow ports.UnitOfWork, repo ports.OrderRepository, logger *logger.Logger) *Service {
-	return &Service{uow: uow, repo: repo, logger: logger}
+func New(uow ports.UnitOfWork, repo ports.OrderRepository, logger *logger.Logger, publisher Publisher) *Service {
+	return &Service{
+		uow:       uow,
+		repo:      repo,
+		logger:    logger,
+		publisher: publisher,
+	}
 }
 
 // PlaceOrder validates input, builds a domain Order, and returns a summary.

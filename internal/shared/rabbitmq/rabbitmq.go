@@ -28,6 +28,14 @@ type Client struct {
 	reconnect chan struct{}
 }
 
+type MQPublisher struct {
+	Client *Client
+}
+
+func (p *MQPublisher) Publish(exchange, routingKey string, body []byte, priority uint8) error {
+	return p.Client.PublishMessage(exchange, routingKey, body, priority)
+}
+
 // ConnectRabbitMQ establishes connection and starts a background watcher that reconnects on failures.
 func ConnectRabbitMQ(ctx context.Context, cfg *config.Config, log *logger.Logger) (*Client, error) {
 	url := fmt.Sprintf("amqp://%s:%s@%s:%d/",
@@ -217,7 +225,7 @@ func (client *Client) connectOnce(ctx context.Context) error {
 	}()
 
 	client.logger.Info(ctx, "rabbitmq_connected",
-		"Connected to RabbitMQ and ensured topology; exchanges: orders_topic, notifications_fanout",
+		"Connected to RabbitMQ; exchanges: orders_topic, notifications_fanout",
 		map[string]any{"duration_ms": time.Since(start).Milliseconds()})
 
 	return nil

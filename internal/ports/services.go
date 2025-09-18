@@ -9,8 +9,6 @@ import (
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/contracts"
 )
 
-// Application services (pure orchestrators over repos + bus). Implemented in /internal/app/*.
-
 // OrderService handles POST /orders flow: validate → total → priority → number → tx insert → publish.
 type OrderService interface {
 	PlaceOrder(ctx context.Context, cmd CreateOrderCommand) (OrderPlaced, error)
@@ -39,10 +37,6 @@ type OrderPlaced struct {
 
 // KitchenService drives message consumption to cooking/ready with idempotency.
 type KitchenService interface {
-	// Called per incoming OrderMessage. Handles:
-	// - set cooking (CAS from received) + log + publish status
-	// - simulate cooking time (returned value tells adapter how long to sleep)
-	// - set ready + log + publish status
 	StartCooking(ctx context.Context, workerName string, msg contracts.OrderMessage, now time.Time) (cookFor time.Duration, err error)
 	FinishCooking(ctx context.Context, workerName string, msg contracts.OrderMessage, startedAt time.Time, now time.Time) error
 }

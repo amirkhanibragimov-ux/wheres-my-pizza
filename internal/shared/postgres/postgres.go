@@ -8,14 +8,16 @@ import (
 	"strconv"
 	"time"
 
+	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/config"
+	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/logger"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/config"
 )
 
 // NewPool builds a DSN from cfg, configures pgxpool, verifies connectivity, and returns the pool.
-func NewPool(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
+func NewPool(ctx context.Context, cfg *config.Config, logger *logger.Logger) (*pgxpool.Pool, error) {
+	start := time.Now()
+
 	// build a safe URL DSN
 	u := &url.URL{
 		Scheme: "postgres",
@@ -53,6 +55,8 @@ func NewPool(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
 		pool.Close()
 		return nil, fmt.Errorf("postgres ping: %w", err)
 	}
+
+	logger.Info(ctx, "db_connected", "Connected to PostgreSQL database", map[string]any{"duration_ms": time.Since(start).Milliseconds()})
 
 	return pool, nil
 }
