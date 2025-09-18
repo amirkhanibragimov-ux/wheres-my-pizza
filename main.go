@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"git.platform.alem.school/amibragim/wheres-my-pizza/cmd/kitchenworker"
 	"git.platform.alem.school/amibragim/wheres-my-pizza/cmd/orderservice"
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/cli"
 )
@@ -102,9 +103,10 @@ func main() {
 			os.Exit(2)
 		}
 
-		// TODO: kitchenworker.Run(ctx, opts{...})
-		fmt.Printf("[DRY-RUN] %s: worker-name=%s order-types=%s heartbeat=%ds prefetch=%d\n",
-			cli.ModeKitchen, *workerName, *orderTypes, *heartbeat, *prefetch)
+		if err := kitchenworker.Run(ctx, *workerName, orderTypes, *heartbeat, *prefetch); err != nil {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+			os.Exit(1)
+		}
 
 	case cli.ModeTrack:
 		fs := flag.NewFlagSet(cli.ModeTrack, flag.ContinueOnError)
