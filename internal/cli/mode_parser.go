@@ -23,7 +23,7 @@ func isKnownMode(s string) (string, bool) {
 		return ModeTrack, true
 	case ModeKitchen, "kitchen":
 		return ModeKitchen, true
-	case ModeNotify, "notify":
+	case ModeNotify, "notification", "notify":
 		return ModeNotify, true
 	default:
 		return "", false

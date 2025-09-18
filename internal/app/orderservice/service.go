@@ -11,6 +11,7 @@ import (
 
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/domain/orders"
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/ports"
+	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/contracts"
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/logger"
 )
 
@@ -94,10 +95,13 @@ func (service *Service) PlaceOrder(ctx context.Context, cmd ports.CreateOrderCom
 		}
 	}
 
+	// define variables to hold the order and the result
+	var order orders.Order
 	var placed ports.OrderPlaced
+
+	// run within a transaction
 	err := service.uow.WithinTx(ctx, func(txCtx context.Context) error {
 		// build the aggregate
-		var order orders.Order
 		order.CustomerName = cmd.CustomerName
 		order.Type = cmd.Type
 		order.TableNumber = cmd.TableNumber
@@ -153,31 +157,24 @@ func (service *Service) PlaceOrder(ctx context.Context, cmd ports.CreateOrderCom
 		return ports.OrderPlaced{}, fmt.Errorf("no publisher configured")
 	}
 
-	type item struct {
-		Name     string  `json:"name"`
-		Quantity int     `json:"quantity"`
-		Price    float64 `json:"price"`
-	}
-
-	// reconstruct items for publishing from cmd (prices are cents in domain; convert to dollars)
-	items := make([]item, len(cmd.Items))
-	for i, it := range cmd.Items {
-		items[i] = item{
-			Name:     strings.TrimSpace(it.Name),
+	mItems := make([]contracts.OrderItemMessage, len(order.Items))
+	for i, it := range order.Items {
+		mItems[i] = contracts.OrderItemMessage{
+			Name:     it.Name,
 			Quantity: it.Quantity,
-			Price:    it.Price.ToFloat2(), // domain Money -> float with 2 decimals
+			Price:    it.Price.ToFloat2(),
 		}
 	}
 
-	msg := map[string]any{
-		"order_number":     placed.OrderNumber,
-		"customer_name":    cmd.CustomerName,
-		"order_type":       string(cmd.Type),
-		"table_number":     cmd.TableNumber,
-		"delivery_address": cmd.DeliveryAddress,
-		"items":            items,
-		"total_amount":     placed.TotalAmount.ToFloat2(),
-		"priority":         placed.Priority,
+	msg := contracts.OrderMessage{
+		OrderNumber:     order.Number,
+		CustomerName:    order.CustomerName,
+		OrderType:       string(order.Type),
+		TableNumber:     order.TableNumber,
+		DeliveryAddress: order.DeliveryAddress,
+		Items:           mItems,
+		TotalAmount:     order.TotalAmount.ToFloat2(),
+		Priority:        order.Priority,
 	}
 
 	body, err := json.Marshal(msg)
