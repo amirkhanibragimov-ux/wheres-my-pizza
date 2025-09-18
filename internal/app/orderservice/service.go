@@ -2,6 +2,7 @@ package orderservice
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -143,6 +144,58 @@ func (service *Service) PlaceOrder(ctx context.Context, cmd ports.CreateOrderCom
 		}
 		return nil
 	})
+	if err != nil {
+		return ports.OrderPlaced{}, err
+	}
+
+	// check if publisher is configured
+	if service.publisher == nil {
+		return ports.OrderPlaced{}, fmt.Errorf("no publisher configured")
+	}
+
+	type item struct {
+		Name     string  `json:"name"`
+		Quantity int     `json:"quantity"`
+		Price    float64 `json:"price"`
+	}
+
+	// reconstruct items for publishing from cmd (prices are cents in domain; convert to dollars)
+	items := make([]item, len(cmd.Items))
+	for i, it := range cmd.Items {
+		items[i] = item{
+			Name:     strings.TrimSpace(it.Name),
+			Quantity: it.Quantity,
+			Price:    it.Price.ToFloat2(), // domain Money -> float with 2 decimals
+		}
+	}
+
+	msg := map[string]any{
+		"order_number":     placed.OrderNumber,
+		"customer_name":    cmd.CustomerName,
+		"order_type":       string(cmd.Type),
+		"table_number":     cmd.TableNumber,
+		"delivery_address": cmd.DeliveryAddress,
+		"items":            items,
+		"total_amount":     placed.TotalAmount.ToFloat2(),
+		"priority":         placed.Priority,
+	}
+
+	body, err := json.Marshal(msg)
+	if err != nil {
+		service.logger.Error(ctx, "rabbitmq_publish_failed", "failed to encode order message", err)
+		return placed, nil // Do not fail the HTTP flow because DB commit already succeeded
+	}
+
+	routingKey := fmt.Sprintf("kitchen.%s.%d", string(cmd.Type), placed.Priority)
+	if pubErr := service.publisher.Publish("orders_topic", routingKey, body, uint8(placed.Priority)); pubErr != nil {
+		service.logger.Error(ctx, "rabbitmq_publish_failed", "failed to publish order message", pubErr)
+	} else {
+		service.logger.Debug(ctx, "order_published", "order published to RabbitMQ", map[string]any{
+			"order_number": placed.OrderNumber,
+			"routing_key":  routingKey,
+			"priority":     placed.Priority,
+		})
+	}
 
 	return placed, err
 }

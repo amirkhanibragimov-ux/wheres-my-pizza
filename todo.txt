@@ -19,6 +19,8 @@ docker rm -f exchange1
 docker ps -aq | xargs docker rm -f
 - forcefully stops and removes all containers
 
-go build -o restaurant-system .
+docker exec -it pizza-postgres psql -U restaurant_user -d restaurant_db -c \
+  "select number, customer_name, type, total_amount, status, priority from orders order by id desc limit 5;"
+
 
 ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -q -P "" && cat ~/.ssh/id_ed25519.pub
