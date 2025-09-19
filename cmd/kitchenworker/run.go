@@ -3,6 +3,7 @@ package kitchenworker
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	service "git.platform.alem.school/amibragim/wheres-my-pizza/internal/app/kitchenworker"
@@ -10,6 +11,7 @@ import (
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/logger"
 	pg "git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/postgres"
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/rabbitmq"
+	"github.com/rabbitmq/amqp091-go"
 )
 
 func Run(ctx context.Context, workerName string, orderTypes *string, heartbeat, prefetch int) error {
@@ -70,6 +72,10 @@ func Run(ctx context.Context, workerName string, orderTypes *string, heartbeat, 
 		"prefetch":  prefetch,
 	})
 
+	// child context we control for goroutines
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	// define a ticker for heartbeats
 	hb := time.NewTicker(time.Duration(heartbeat) * time.Second)
 	defer hb.Stop()
@@ -80,29 +86,29 @@ func Run(ctx context.Context, workerName string, orderTypes *string, heartbeat, 
 		for {
 			select {
 			case <-hb.C:
-				if err := workerSvc.Heartbeat(ctx, workerName); err != nil {
+				if err := workerSvc.Heartbeat(runCtx, workerName); err != nil {
 					heartbeatErrCh <- err
 					return
 				}
-			case <-ctx.Done():
+			case <-runCtx.Done():
 				return
 			}
 		}
 	}()
 
 	// set up a consumer loop in a background goroutine
-	consumeErrCh := make(chan error, 1)
+	var wg sync.WaitGroup
 	go func() {
 		// backoff parameters
 		backoff := time.Second
 		for {
-			if ctx.Err() != nil {
+			if runCtx.Err() != nil {
 				return
 			}
 
 			ch, err := rmq.NewConsumerChannel(prefetch)
 			if err != nil {
-				logger.Error(ctx, "rabbitmq_channel_failed", "Failed to open consumer channel", err)
+				logger.Error(runCtx, "rabbitmq_channel_failed", "Failed to open consumer channel", err)
 				time.Sleep(backoff)
 				if backoff < 30*time.Second {
 					backoff *= 2
@@ -122,7 +128,7 @@ func Run(ctx context.Context, workerName string, orderTypes *string, heartbeat, 
 			)
 			if err != nil {
 				_ = ch.Close()
-				logger.Error(ctx, "rabbitmq_consume_failed", "Failed to start consuming", err)
+				logger.Error(runCtx, "rabbitmq_consume_failed", "Failed to start consuming", err)
 				time.Sleep(backoff)
 				if backoff < 30*time.Second {
 					backoff *= 2
@@ -136,7 +142,7 @@ func Run(ctx context.Context, workerName string, orderTypes *string, heartbeat, 
 			// read loop
 			for {
 				select {
-				case <-ctx.Done():
+				case <-runCtx.Done():
 					// stop consuming and let broker requeue any in-flight
 					_ = ch.Cancel(consumerTag, false)
 					_ = ch.Close()
@@ -151,7 +157,12 @@ func Run(ctx context.Context, workerName string, orderTypes *string, heartbeat, 
 						}
 						goto resubscribe
 					}
-					handleDelivery(ctx, logger, processor, workerName, wtype, d)
+					wg.Add(1)
+					go func(d amqp091.Delivery) {
+						defer wg.Done()
+						handleDelivery(runCtx, logger, processor, workerName, wtype, d)
+					}(d)
+
 				}
 			}
 		resubscribe:
@@ -159,27 +170,37 @@ func Run(ctx context.Context, workerName string, orderTypes *string, heartbeat, 
 		}
 	}()
 
-	// wait for termination (context cancel, heartbeat failure, or consumer channel failure)
+	// wait for termination signal: either external ctx cancel, or heartbeat failure
 	var retErr error
 	select {
 	case <-ctx.Done():
+		// normal termination: fall through
 	case err := <-heartbeatErrCh:
 		logger.Error(ctx, "heartbeat_loop_stopped", "Heartbeat loop stopped", err)
 		retErr = err
-	case err := <-consumeErrCh:
-		logger.Error(ctx, "consumer_stopped", "Consumer channel stopped", err)
-		retErr = err
 	}
 
-	// attempt graceful offline mark
-	graceCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	// stop goroutines (cancel child context)
+	cancel()
+
+	// finish in-flight order (max 15s; longest cook is 12s)
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-waitCtx.Done():
+		logger.Error(ctx, "graceful_timeout", "Timed out waiting for in-flight job", waitCtx.Err())
+	}
+	waitCancel()
+
+	// mark worker offline
+	graceCtx, gcancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer gcancel()
 	if err := workerSvc.GracefulOffline(graceCtx, workerName); err != nil {
 		logger.Error(ctx, "graceful_offline_failed", "Failed to mark offline during shutdown", err)
 	} else {
-		logger.Info(ctx, "graceful_shutdown", "Worker shutdown completed", map[string]any{
-			"name": workerName,
-		})
+		logger.Info(ctx, "graceful_shutdown", "Worker shutdown completed", map[string]any{"name": workerName})
 	}
 
 	return retErr
