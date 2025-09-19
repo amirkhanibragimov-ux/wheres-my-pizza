@@ -10,10 +10,10 @@ import (
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/contracts"
 )
 
-// Sleeper is a function used to simulate cooking time (time.Sleep in prod, no-op in tests).
-type Sleeper func(d time.Duration)
+// ErrUnsupportedOrderType is created and used for error classification in delivery handling.
+var ErrUnsupportedOrderType = errors.New("unsupported order type")
 
-// Processor coordinates one end-to-end processing of an order in th kitchen.
+// Processor coordinates one end-to-end processing of an order in the kitchen.
 type Processor struct {
 	kitchen ports.KitchenService
 }
@@ -30,10 +30,9 @@ func (p *Processor) Process(
 	workerTypesCSV string,
 	msg contracts.OrderMessage,
 	now time.Time,
-	sleep Sleeper,
 ) error {
 	if !supports(workerTypesCSV, msg.OrderType) {
-		return errors.New("unsupported order type")
+		return ErrUnsupportedOrderType
 	}
 
 	// start cooking
@@ -44,7 +43,7 @@ func (p *Processor) Process(
 
 	// simulate cooking
 	if cookFor > 0 {
-		sleep(cookFor)
+		time.Sleep(cookFor)
 	}
 
 	// finish cooking

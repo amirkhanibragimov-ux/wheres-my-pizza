@@ -64,7 +64,7 @@ func (service *kitchenService) StartCooking(ctx context.Context, workerName stri
 	})
 	if err != nil {
 		service.logger.Error(ctx, "db_transaction_failed", "failed to set status to cooking", err)
-		return 0, err
+		return 0, Retryable(err)
 	}
 	if newStatus == "" {
 		// no transition happened, idempotent return
@@ -72,7 +72,7 @@ func (service *kitchenService) StartCooking(ctx context.Context, workerName stri
 	}
 
 	// publish status update
-	if err := service.publishStatusUpdate(ctx, msg.OrderNumber, oldStatus, newStatus, workerName, now, service.cookingDuration(msg.OrderType)); err != nil {
+	if err := service.publishStatusUpdate(msg.OrderNumber, oldStatus, newStatus, workerName, now, service.cookingDuration(msg.OrderType)); err != nil {
 		service.logger.Error(ctx, "rabbitmq_publish_failed", "failed to publish status update", err)
 		// continue anyway; DB commit already succeeded
 	}
@@ -114,7 +114,7 @@ func (service *kitchenService) FinishCooking(ctx context.Context, workerName str
 	})
 	if err != nil {
 		service.logger.Error(ctx, "db_transaction_failed", "failed to set status to ready", err)
-		return err
+		return Retryable(err)
 	}
 	if newStatus == "" {
 		// no transition happened
@@ -122,7 +122,7 @@ func (service *kitchenService) FinishCooking(ctx context.Context, workerName str
 	}
 
 	// publish status update
-	if err = service.publishStatusUpdate(ctx, msg.OrderNumber, oldStatus, newStatus, workerName, now, 0); err != nil {
+	if err = service.publishStatusUpdate(msg.OrderNumber, oldStatus, newStatus, workerName, now, 0); err != nil {
 		service.logger.Error(ctx, "rabbitmq_publish_failed", "failed to publish status update", err)
 	}
 
@@ -148,31 +148,30 @@ func (service *kitchenService) cookingDuration(orderType string) time.Duration {
 }
 
 // publishStatusUpdate builds and publishes a JSON message to notifications_fanout.
-func (s *kitchenService) publishStatusUpdate(
-	ctx context.Context,
+func (service *kitchenService) publishStatusUpdate(
 	orderNumber string,
 	old, new orders.OrderStatus,
 	by string,
 	now time.Time,
 	cookFor time.Duration,
 ) error {
-	est := now
-	if cookFor > 0 {
-		est = now.Add(cookFor)
+	update := contracts.StatusUpdateMessage{
+		OrderNumber: orderNumber,
+		OldStatus:   string(old),
+		NewStatus:   string(new),
+		ChangedBy:   by,
+		Timestamp:   now.UTC(),
 	}
 
-	update := map[string]any{
-		"order_number":         orderNumber,
-		"old_status":           string(old),
-		"new_status":           string(new),
-		"changed_by":           by,
-		"timestamp":            now.UTC().Format(time.RFC3339),
-		"estimated_completion": est.UTC().Format(time.RFC3339),
+	if cookFor > 0 {
+		est := now.Add(cookFor).UTC()
+		update.EstimatedCompletion = &est
 	}
 
 	body, err := json.Marshal(update)
 	if err != nil {
 		return fmt.Errorf("marshal status update: %w", err)
 	}
-	return s.publisher.Publish("notifications_fanout", "", body, 0)
+
+	return service.publisher.Publish("notifications_fanout", "", body, 0)
 }
