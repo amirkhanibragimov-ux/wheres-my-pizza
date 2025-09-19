@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"git.platform.alem.school/amibragim/wheres-my-pizza/cmd/kitchenworker"
+	"git.platform.alem.school/amibragim/wheres-my-pizza/cmd/notificationservice"
 	"git.platform.alem.school/amibragim/wheres-my-pizza/cmd/orderservice"
+	"git.platform.alem.school/amibragim/wheres-my-pizza/cmd/trackingservice"
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/cli"
 )
 
@@ -127,12 +129,16 @@ func main() {
 			os.Exit(2)
 		}
 
-		// TODO: trackingservice.Run(ctx, opts{Port:*port})
-		fmt.Printf("[DRY-RUN] %s: port=%d\n", cli.ModeTrack, *port)
+		if err := trackingservice.Run(ctx, *port); err != nil {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+			os.Exit(1)
+		}
 
 	case cli.ModeNotify:
-		// TODO: notificationsubscriber.Run(ctx)
-		fmt.Printf("[DRY-RUN] %s:\n", cli.ModeNotify)
+		if err := notificationservice.Run(ctx); err != nil {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+			os.Exit(1)
+		}
 	}
 
 	select {

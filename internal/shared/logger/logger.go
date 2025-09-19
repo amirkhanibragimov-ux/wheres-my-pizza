@@ -25,7 +25,7 @@ type LogEntry struct {
 	Hostname  string       `json:"hostname"`
 	RequestID string       `json:"request_id"`
 	Error     *ErrorObject `json:"error,omitempty"`
-	Details   any          `json:"details,omitempty"` // optional—used in spec examples
+	Details   any          `json:"details,omitempty"` // optional - used only in specific examples
 }
 
 // Logger represents a custom structured logger.
@@ -50,6 +50,7 @@ func NewLogger(service string) *Logger {
 // Define an unexported type for context keys.
 type ctxKey string
 
+// requestIDKey is the context key for the request ID.
 const requestIDKey ctxKey = "request_id"
 
 // WithRequestID returns a context carrying a request id (useful for HTTP/mq hops).
@@ -74,7 +75,7 @@ func (logger *Logger) emit(entry LogEntry) {
 		fmt.Fprintf(os.Stderr, "log marshal failed: %v\n", err)
 		return
 	}
-	fmt.Println(string(b)) // stdout per spec
+	fmt.Println(string(b)) // writes to stdout per spec
 }
 
 // -- Logger helper functions --

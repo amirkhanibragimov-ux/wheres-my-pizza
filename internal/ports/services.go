@@ -9,6 +9,11 @@ import (
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/contracts"
 )
 
+// Publisher is the interface your rabbitmq.Client already implements.
+type Publisher interface {
+	Publish(exchange, routingKey string, body []byte, priority uint8) error
+}
+
 type CreateOrderCommand struct {
 	CustomerName    string
 	Type            orders.OrderType
@@ -28,11 +33,6 @@ type OrderPlaced struct {
 	Status      orders.OrderStatus
 	TotalAmount orders.Money
 	Priority    int
-}
-
-// Publisher is the interface your rabbitmq.Client already implements.
-type Publisher interface {
-	Publish(exchange, routingKey string, body []byte, priority uint8) error
 }
 
 // OrderService handles POST /orders requests.

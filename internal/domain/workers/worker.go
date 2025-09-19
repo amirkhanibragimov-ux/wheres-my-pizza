@@ -12,7 +12,7 @@ const (
 type Worker struct {
 	ID              int64
 	Name            string
-	Type            string // freeform specialization label
+	Type            string
 	Status          WorkerStatus
 	LastSeen        time.Time
 	OrdersProcessed int
