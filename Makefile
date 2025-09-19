@@ -1,17 +1,17 @@
 .PHONY: config1 config2 build \
 		prune clean-containers down up rebuild clean all \
-		orderservice
+		orderservice kitchenworker1 kitchenworker2 kitchenworker3
 
 # ----------------- CONFIGURATION -------------------
 
 # Set the config
 config1:
-	git config --global user.email "amirkhan.ibragimov@nu.edu.kz"
-	git config --global user.name "Amirkhan"
+	git config user.email "amirkhan.ibragimov@nu.edu.kz"
+	git config user.name "Amirkhan"
 
 config2:
-	git config --global user.email "a.kuanyshev11@gmail.com"
-	git config --global user.name "Ayan"
+	git config user.email "a.kuanyshev11@gmail.com"
+	git config user.name "Ayan"
 
 # Build the Go binary
 build:
@@ -51,3 +51,12 @@ all: prune clean-containers down rebuild
 orderservice:
 	go build -o restaurant-system .
 	./restaurant-system --mode=order-service --port=3000 2>&1 | jq .
+
+kitchenworker1:
+	./restaurant-system --mode=kitchen-worker --worker-name="chef_anna" --prefetch=1 &
+
+kitchenworker2:
+	./restaurant-system --mode=kitchen-worker --worker-name="chef_mario" --order-types="dine_in" &
+
+kitchenworker3:
+	./restaurant-system --mode=kitchen-worker --worker-name="chef_luigi" --order-types="delivery" &

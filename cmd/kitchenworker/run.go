@@ -39,24 +39,30 @@ func Run(ctx context.Context, workerName string, orderTypes *string, heartbeat, 
 	}
 	defer rmq.Close()
 
-	// set up repositories, unit of work and service
+	// set up repositories and unit of work
 	uow := pg.NewUnitOfWork(pool)
-	workersRepo := pg.NewWorkersRepo() // import "git.platform.../internal/shared/postgres"
+	workersRepo := pg.NewWorkersRepo()
+	ordersRepo := pg.NewOrdersRepo()
+
+	// set up the service with its dependencies
+	pub := &rabbitmq.MQPublisher{Client: rmq}
 	workerSvc := service.NewWorkerService(uow, workersRepo, logger)
+	kitchenSvc := service.NewKitchenService(uow, ordersRepo, workersRepo, pub, logger)
+	processor := service.NewProcessor(kitchenSvc)
 
 	// normalize worker type string (e.g., "dine_in, takeout, delivery")
 	wtype := detectWorkerType(orderTypes)
 
-	// register the worker as online (or exit if duplicate)
+	// register (or exit if duplicate)
 	ok, err := workerSvc.RegisterOrExit(ctx, workerName, wtype)
 	if err != nil {
 		return err
 	}
 	if !ok {
-		// duplicate online worker; terminate with error to conform to spec
-		return fmt.Errorf("worker '%s' is already online", workerName)
+		return fmt.Errorf("worker %q is already online", workerName)
 	}
 
+	// log startup details
 	logger.Info(ctx, "service_started", "Kitchen worker started", map[string]any{
 		"name":      workerName,
 		"type":      wtype,
@@ -64,18 +70,17 @@ func Run(ctx context.Context, workerName string, orderTypes *string, heartbeat, 
 		"prefetch":  prefetch,
 	})
 
-	// set up the ticker for heartbeats
+	// define a ticker for heartbeats
 	hb := time.NewTicker(time.Duration(heartbeat) * time.Second)
 	defer hb.Stop()
 
-	// run heartbeat loop until shutdown
+	// set up a heartbeat loop in a background goroutine
 	heartbeatErrCh := make(chan error, 1)
 	go func() {
 		for {
 			select {
 			case <-hb.C:
 				if err := workerSvc.Heartbeat(ctx, workerName); err != nil {
-					// Log inside Heartbeat as well; surface once to unblock callers if needed.
 					heartbeatErrCh <- err
 					return
 				}
@@ -85,26 +90,97 @@ func Run(ctx context.Context, workerName string, orderTypes *string, heartbeat, 
 		}
 	}()
 
-	// wait for shutdown signal or heartbeat failure
+	// set up a consumer loop in a background goroutine
+	consumeErrCh := make(chan error, 1)
+	go func() {
+		// backoff parameters
+		backoff := time.Second
+		for {
+			if ctx.Err() != nil {
+				return
+			}
+
+			ch, err := rmq.NewConsumerChannel(prefetch)
+			if err != nil {
+				logger.Error(ctx, "rabbitmq_channel_failed", "Failed to open consumer channel", err)
+				time.Sleep(backoff)
+				if backoff < 30*time.Second {
+					backoff *= 2
+				}
+				continue
+			}
+
+			consumerTag := fmt.Sprintf("kitchen-%s", workerName)
+			deliveries, err := ch.Consume(
+				"kitchen_queue",
+				consumerTag,
+				false, // manual ack
+				false,
+				false,
+				false,
+				nil,
+			)
+			if err != nil {
+				_ = ch.Close()
+				logger.Error(ctx, "rabbitmq_consume_failed", "Failed to start consuming", err)
+				time.Sleep(backoff)
+				if backoff < 30*time.Second {
+					backoff *= 2
+				}
+				continue
+			}
+
+			// reset backoff after a successful subscribe
+			backoff = time.Second
+
+			// read loop
+			for {
+				select {
+				case <-ctx.Done():
+					// stop consuming and let broker requeue any in-flight
+					_ = ch.Cancel(consumerTag, false)
+					_ = ch.Close()
+					return
+				case d, ok := <-deliveries:
+					if !ok {
+						// channel closed (connection lost or server-side cancel) → resubscribe
+						_ = ch.Close()
+						time.Sleep(backoff)
+						if backoff < 30*time.Second {
+							backoff *= 2
+						}
+						goto resubscribe
+					}
+					handleDelivery(ctx, logger, processor, workerName, wtype, d)
+				}
+			}
+		resubscribe:
+			continue
+		}
+	}()
+
+	// wait for termination (context cancel, heartbeat failure, or consumer channel failure)
+	var retErr error
 	select {
 	case <-ctx.Done():
-		// normal shutdown
 	case err := <-heartbeatErrCh:
-		// heartbeat died (likely DB outage) — proceed to graceful offline, return error
 		logger.Error(ctx, "heartbeat_loop_stopped", "Heartbeat loop stopped", err)
+		retErr = err
+	case err := <-consumeErrCh:
+		logger.Error(ctx, "consumer_stopped", "Consumer channel stopped", err)
+		retErr = err
 	}
 
-	// try to mark the worker as offline gracefully before exiting
+	// attempt graceful offline mark
 	graceCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := workerSvc.GracefulOffline(graceCtx, workerName); err != nil {
 		logger.Error(ctx, "graceful_offline_failed", "Failed to mark offline during shutdown", err)
-		// continue shutdown regardless
 	} else {
 		logger.Info(ctx, "graceful_shutdown", "Worker shutdown completed", map[string]any{
 			"name": workerName,
 		})
 	}
 
-	return nil
+	return retErr
 }

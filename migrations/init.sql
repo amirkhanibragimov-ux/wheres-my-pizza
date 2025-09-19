@@ -11,7 +11,6 @@ DROP TABLE IF EXISTS workers CASCADE;
 DROP TYPE  IF EXISTS order_status;
 DROP TYPE  IF EXISTS order_type;
 DROP TYPE  IF EXISTS worker_status;
-DROP TRIGGER IF EXISTS orders_set_updated_at ON orders;
 
 
 -- =============================
@@ -50,7 +49,7 @@ CREATE TABLE orders (
     table_number      INTEGER,
     delivery_address  TEXT,
     total_amount      NUMERIC(10,2) NOT NULL    CHECK (total_amount >= 0.01),
-    priority          INTEGER       DEFAULT 1   CHECK (priority IN (1,5,10)),
+    priority          INTEGER       NOT NULL    DEFAULT 1   CHECK (priority IN (1,5,10)),
     status            order_status  NOT NULL    DEFAULT 'received',
     processed_by      TEXT,
     completed_at      TIMESTAMPTZ,
