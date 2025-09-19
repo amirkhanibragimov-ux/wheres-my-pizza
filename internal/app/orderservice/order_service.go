@@ -23,20 +23,22 @@ type Publisher interface {
 type Service struct {
 	uow       ports.UnitOfWork
 	repo      ports.OrderRepository
-	logger    *logger.Logger
 	publisher Publisher
+	logger    *logger.Logger
 }
 
-// Ensure Service implements the interface at compile time.
-var _ ports.OrderService = (*Service)(nil)
-
 // New creates a new OrderService with the required dependencies.
-func New(uow ports.UnitOfWork, repo ports.OrderRepository, logger *logger.Logger, publisher Publisher) *Service {
+func New(
+	uow ports.UnitOfWork,
+	repo ports.OrderRepository,
+	publisher Publisher,
+	logger *logger.Logger,
+) ports.OrderService {
 	return &Service{
 		uow:       uow,
 		repo:      repo,
-		logger:    logger,
 		publisher: publisher,
+		logger:    logger,
 	}
 }
 

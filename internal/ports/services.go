@@ -9,11 +9,6 @@ import (
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/contracts"
 )
 
-// OrderService handles POST /orders flow: validate → total → priority → number → tx insert → publish.
-type OrderService interface {
-	PlaceOrder(ctx context.Context, cmd CreateOrderCommand) (OrderPlaced, error)
-}
-
 type CreateOrderCommand struct {
 	CustomerName    string
 	Type            orders.OrderType
@@ -35,10 +30,9 @@ type OrderPlaced struct {
 	Priority    int
 }
 
-// KitchenService drives message consumption to cooking/ready with idempotency.
-type KitchenService interface {
-	StartCooking(ctx context.Context, workerName string, msg contracts.OrderMessage, now time.Time) (cookFor time.Duration, err error)
-	FinishCooking(ctx context.Context, workerName string, msg contracts.OrderMessage, startedAt time.Time, now time.Time) error
+// OrderService handles POST /orders requests.
+type OrderService interface {
+	PlaceOrder(ctx context.Context, cmd CreateOrderCommand) (OrderPlaced, error)
 }
 
 // WorkerService for lifecycle and heartbeats.
@@ -48,11 +42,10 @@ type WorkerService interface {
 	GracefulOffline(ctx context.Context, name string) error
 }
 
-// TrackingService powers GET /orders/* and /workers/status.
-type TrackingService interface {
-	GetOrderStatus(ctx context.Context, number string) (*OrderStatusView, error)
-	GetOrderHistory(ctx context.Context, number string) ([]orders.StatusLog, error)
-	ListWorkers(ctx context.Context, offlineIfOlderThan time.Duration, now time.Time) ([]WorkerView, error)
+// KitchenService drives message consumption to cooking/ready with idempotency.
+type KitchenService interface {
+	StartCooking(ctx context.Context, workerName string, msg contracts.OrderMessage, now time.Time) (cookFor time.Duration, err error)
+	FinishCooking(ctx context.Context, workerName string, msg contracts.OrderMessage, startedAt time.Time, now time.Time) error
 }
 
 type OrderStatusView struct {
@@ -68,4 +61,11 @@ type WorkerView struct {
 	Status          workers.WorkerStatus
 	OrdersProcessed int
 	LastSeen        *time.Time
+}
+
+// TrackingService powers GET /orders/* and /workers/status.
+type TrackingService interface {
+	GetOrderStatus(ctx context.Context, number string) (*OrderStatusView, error)
+	GetOrderHistory(ctx context.Context, number string) ([]orders.StatusLog, error)
+	ListWorkers(ctx context.Context, offlineIfOlderThan time.Duration, now time.Time) ([]WorkerView, error)
 }
