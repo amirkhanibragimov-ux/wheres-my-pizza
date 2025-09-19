@@ -3,7 +3,7 @@ package kitchenworker
 import (
 	"context"
 	"fmt"
-	"strings"
+	"time"
 
 	service "git.platform.alem.school/amibragim/wheres-my-pizza/internal/app/kitchenworker"
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/config"
@@ -39,15 +39,16 @@ func Run(ctx context.Context, workerName string, orderTypes *string, heartbeat, 
 	}
 	defer rmq.Close()
 
-	// set up repositories and unit of work
+	// set up repositories, unit of work and service
 	uow := pg.NewUnitOfWork(pool)
 	workersRepo := pg.NewWorkersRepo() // import "git.platform.../internal/shared/postgres"
-
-	// build worker service
 	workerSvc := service.NewWorkerService(uow, workersRepo, logger)
 
+	// normalize worker type string (e.g., "dine_in, takeout, delivery")
+	wtype := detectWorkerType(orderTypes)
+
 	// register the worker as online (or exit if duplicate)
-	ok, err := workerSvc.RegisterOrExit(ctx, workerName, detectWorkerType(orderTypes))
+	ok, err := workerSvc.RegisterOrExit(ctx, workerName, wtype)
 	if err != nil {
 		return err
 	}
@@ -56,60 +57,54 @@ func Run(ctx context.Context, workerName string, orderTypes *string, heartbeat, 
 		return fmt.Errorf("worker '%s' is already online", workerName)
 	}
 
-	return nil
-}
+	logger.Info(ctx, "service_started", "Kitchen worker started", map[string]any{
+		"name":      workerName,
+		"type":      wtype,
+		"heartbeat": heartbeat,
+		"prefetch":  prefetch,
+	})
 
-// detectWorkerType returns a canonical, comma+space separated list of supported order types.
-func detectWorkerType(orderTypes *string) string {
-	allowed := map[string]struct{}{
-		"dine_in":  {},
-		"takeout":  {},
-		"delivery": {},
-	}
-	order := []string{"dine_in", "takeout", "delivery"}
+	// set up the ticker for heartbeats
+	hb := time.NewTicker(time.Duration(heartbeat) * time.Second)
+	defer hb.Stop()
 
-	// Helper to render canonical list from a presence set.
-	render := func(have map[string]bool) string {
-		var out []string
-		for _, k := range order {
-			if have[k] {
-				out = append(out, k)
+	// run heartbeat loop until shutdown
+	heartbeatErrCh := make(chan error, 1)
+	go func() {
+		for {
+			select {
+			case <-hb.C:
+				if err := workerSvc.Heartbeat(ctx, workerName); err != nil {
+					// Log inside Heartbeat as well; surface once to unblock callers if needed.
+					heartbeatErrCh <- err
+					return
+				}
+			case <-ctx.Done():
+				return
 			}
 		}
-		// Join with comma+space for readability/consistency.
-		return strings.Join(out, ", ")
+	}()
+
+	// wait for shutdown signal or heartbeat failure
+	select {
+	case <-ctx.Done():
+		// normal shutdown
+	case err := <-heartbeatErrCh:
+		// heartbeat died (likely DB outage) — proceed to graceful offline, return error
+		logger.Error(ctx, "heartbeat_loop_stopped", "Heartbeat loop stopped", err)
 	}
 
-	// Default: all supported.
-	if orderTypes == nil || strings.TrimSpace(*orderTypes) == "" {
-		return render(map[string]bool{
-			"dine_in":  true,
-			"takeout":  true,
-			"delivery": true,
+	// try to mark the worker as offline gracefully before exiting
+	graceCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := workerSvc.GracefulOffline(graceCtx, workerName); err != nil {
+		logger.Error(ctx, "graceful_offline_failed", "Failed to mark offline during shutdown", err)
+		// continue shutdown regardless
+	} else {
+		logger.Info(ctx, "graceful_shutdown", "Worker shutdown completed", map[string]any{
+			"name": workerName,
 		})
 	}
 
-	parts := strings.Split(*orderTypes, ",")
-	have := map[string]bool{}
-
-	for _, p := range parts {
-		p = strings.ToLower(strings.TrimSpace(p))
-		if p == "" {
-			continue
-		}
-		if _, ok := allowed[p]; ok {
-			have[p] = true
-		}
-	}
-
-	// If user input yields nothing valid, treat as "all supported".
-	if len(have) == 0 {
-		return render(map[string]bool{
-			"dine_in":  true,
-			"takeout":  true,
-			"delivery": true,
-		})
-	}
-
-	return render(have)
+	return nil
 }
