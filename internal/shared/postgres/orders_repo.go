@@ -87,7 +87,7 @@ func (repo *OrdersRepo) GetByNumber(ctx context.Context, number string) (*orders
 	var typeStr string
 	var status string
 	err = tx.QueryRow(ctx, `
-		SELECT id, number, customer_name, type, table_number, delivery_address, total_amount::bigint*100, priority, status, created_at, updated_at
+		SELECT id, number, customer_name, type, table_number, delivery_address, (total_amount * 100)::bigint, priority, status, created_at, updated_at
 		FROM orders
 		WHERE number = $1
 	`, number).Scan(
@@ -101,7 +101,7 @@ func (repo *OrdersRepo) GetByNumber(ctx context.Context, number string) (*orders
 	order.Status = orders.OrderStatus(status)
 
 	rows, err := tx.Query(ctx, `
-		SELECT id, name, quantity, price::bigint*100
+		SELECT id, name, quantity, (price * 100)::bigint
 		FROM order_items
 		WHERE order_id = $1
 	`, order.ID)
@@ -139,7 +139,7 @@ func (repo *OrdersRepo) UpdateStatusCAS(
 		return false, err
 	}
 
-	// read current status (and lock the row so concurrent transitions serialize).
+	// read current status (and lock the row so concurrent transitions serialize)
 	var (
 		orderID int64
 		current orders.OrderStatus
@@ -266,7 +266,7 @@ func (repo *OrdersRepo) NextOrderSeq(ctx context.Context, day time.Time) (int, e
 		return 0, err
 	}
 
-	// use an UPSERT to create or increment a per-day sequence counter.
+	// use an UPSERT to create or increment a per-day sequence counter
 	var n int
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_number_seq(day, n)
