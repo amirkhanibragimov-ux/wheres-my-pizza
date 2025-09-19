@@ -2,18 +2,20 @@ package kitchenworker
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
+	service "git.platform.alem.school/amibragim/wheres-my-pizza/internal/app/kitchenworker"
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/config"
-	newlogger "git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/logger"
+	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/logger"
 	pg "git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/postgres"
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/rabbitmq"
 )
 
 func Run(ctx context.Context, workerName string, orderTypes *string, heartbeat, prefetch int) error {
 	// set up a new logger for kitchen worker with a static request ID for startup logs
-	logger := newlogger.NewLogger("kitchen-worker")
-	ctx = newlogger.WithRequestID(ctx, "startup-001")
+	logger := logger.NewLogger("kitchen-worker")
+	ctx = logger.WithRequestID(ctx, "startup-001")
 
 	// load a config from file
 	cfg, err := config.LoadFromFile("config/config.yaml")
@@ -41,20 +43,18 @@ func Run(ctx context.Context, workerName string, orderTypes *string, heartbeat, 
 	uow := pg.NewUnitOfWork(pool)
 	workersRepo := pg.NewWorkersRepo() // import "git.platform.../internal/shared/postgres"
 
+	// build worker service
+	workerSvc := service.NewWorkerService(uow, workersRepo, logger)
+
 	// register the worker as online (or exit if duplicate)
-	ok := false
-	err = uow.WithinTx(ctx, func(ctx context.Context) error {
-		var err error
-		ok, err = workersRepo.RegisterOnline(ctx, workerName, detectWorkerType(orderTypes))
-		return err
-	})
+	ok, err := workerSvc.RegisterOrExit(ctx, workerName, detectWorkerType(orderTypes))
 	if err != nil {
-		logger.Error(ctx, "worker_registration_failed", "Failed to register worker as online", err)
+		return err
 	}
 	if !ok {
-		logger.Error(ctx, "worker_duplicate", "Worker with this name is already online; terminating", nil)
+		// duplicate online worker; terminate with error to conform to spec
+		return fmt.Errorf("worker '%s' is already online", workerName)
 	}
-	logger.Info(ctx, "worker_registered", "Worker registered as online", map[string]any{"name": workerName, "type": detectWorkerType(orderTypes)})
 
 	return nil
 }

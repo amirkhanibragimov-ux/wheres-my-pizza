@@ -10,7 +10,7 @@ import (
 
 	service "git.platform.alem.school/amibragim/wheres-my-pizza/internal/app/orderservice"
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/config"
-	newlogger "git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/logger"
+	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/logger"
 	pg "git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/postgres"
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/rabbitmq"
 )
@@ -19,8 +19,8 @@ import (
 // It returns the first terminal error (server or startup failure).
 func Run(ctx context.Context, port int, maxConcurrent int) error {
 	// set up a new logger for order service with a static request ID for startup logs
-	logger := newlogger.NewLogger("order-service")
-	ctx = newlogger.WithRequestID(ctx, "startup-001")
+	logger := logger.NewLogger("order-service")
+	ctx = logger.WithRequestID(ctx, "startup-001")
 
 	// load a config from file
 	cfg, err := config.LoadFromFile("config/config.yaml")

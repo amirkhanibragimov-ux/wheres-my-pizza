@@ -44,7 +44,7 @@ type KitchenService interface {
 // WorkerService for lifecycle and heartbeats.
 type WorkerService interface {
 	RegisterOrExit(ctx context.Context, name, typ string) (ok bool, err error)
-	Heartbeat(ctx context.Context, name string, now time.Time) error
+	Heartbeat(ctx context.Context, name string) error
 	GracefulOffline(ctx context.Context, name string) error
 }
 

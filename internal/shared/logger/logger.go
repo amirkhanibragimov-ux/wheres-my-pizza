@@ -53,7 +53,7 @@ type ctxKey string
 const requestIDKey ctxKey = "request_id"
 
 // WithRequestID returns a context carrying a request id (useful for HTTP/mq hops).
-func WithRequestID(ctx context.Context, rid string) context.Context {
+func (logger *Logger) WithRequestID(ctx context.Context, rid string) context.Context {
 	return context.WithValue(ctx, requestIDKey, rid)
 }
 

@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"errors"
-	"time"
 
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/domain/workers"
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/ports"
@@ -72,7 +71,7 @@ func (r *WorkersRepo) MarkOffline(ctx context.Context, name string) error {
 }
 
 // Heartbeat refreshes the worker's last_seen and keeps it 'online'.
-func (r *WorkersRepo) Heartbeat(ctx context.Context, name string, when time.Time) error {
+func (r *WorkersRepo) Heartbeat(ctx context.Context, name string) error {
 	tx, err := MustTxFromContext(ctx)
 	if err != nil {
 		return err

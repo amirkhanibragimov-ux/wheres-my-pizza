@@ -28,7 +28,7 @@ type OrderRepository interface {
 type WorkerRepository interface {
 	RegisterOnline(ctx context.Context, name, typ string) (ok bool, err error)
 	MarkOffline(ctx context.Context, name string) error
-	Heartbeat(ctx context.Context, name string, when time.Time) error
+	Heartbeat(ctx context.Context, name string) error
 	IncrementProcessed(ctx context.Context, name string) error
 	ListAll(ctx context.Context) ([]workers.Worker, error)
 }
