@@ -54,7 +54,7 @@ func (service *kitchenService) StartCooking(ctx context.Context, workerName stri
 		}
 
 		// set processed_by together with the transition
-		if err := s.ordersRepo.SetProcessedBy(txCtx, msg.OrderNumber, workerName); err != nil {
+		if err := service.ordersRepo.SetProcessedBy(txCtx, msg.OrderNumber, workerName); err != nil {
 			return err
 		}
 
@@ -72,7 +72,7 @@ func (service *kitchenService) StartCooking(ctx context.Context, workerName stri
 	}
 
 	// publish status update
-	if err := service.publishStatusUpdate(ctx, msg.OrderNumber, oldStatus, newStatus, workerName, now); err != nil {
+	if err := service.publishStatusUpdate(ctx, msg.OrderNumber, oldStatus, newStatus, workerName, now, service.cookingDuration(msg.OrderType)); err != nil {
 		service.logger.Error(ctx, "rabbitmq_publish_failed", "failed to publish status update", err)
 		// continue anyway; DB commit already succeeded
 	}
@@ -122,7 +122,7 @@ func (service *kitchenService) FinishCooking(ctx context.Context, workerName str
 	}
 
 	// publish status update
-	if err = service.publishStatusUpdate(ctx, msg.OrderNumber, oldStatus, newStatus, workerName, now); err != nil {
+	if err = service.publishStatusUpdate(ctx, msg.OrderNumber, oldStatus, newStatus, workerName, now, 0); err != nil {
 		service.logger.Error(ctx, "rabbitmq_publish_failed", "failed to publish status update", err)
 	}
 

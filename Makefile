@@ -30,15 +30,15 @@ clean-containers:
 
 # Stop and remove containers, networks, and volumes defined in docker-compose.yml
 down:
-	docker compose down -v
+	docker-compose down -v
 
 # Start the stack normally
 up:
-	docker compose up
+	docker-compose up
 
 # Build fresh images and start
 rebuild:
-	docker compose up --build
+	docker-compose up --build
 
 # Convenience bundle:  clean containers, volumes, and images
 clean: prune clean-containers down
