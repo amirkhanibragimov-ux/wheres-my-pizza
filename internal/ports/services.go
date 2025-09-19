@@ -30,6 +30,11 @@ type OrderPlaced struct {
 	Priority    int
 }
 
+// Publisher is the interface your rabbitmq.Client already implements.
+type Publisher interface {
+	Publish(exchange, routingKey string, body []byte, priority uint8) error
+}
+
 // OrderService handles POST /orders requests.
 type OrderService interface {
 	PlaceOrder(ctx context.Context, cmd CreateOrderCommand) (OrderPlaced, error)

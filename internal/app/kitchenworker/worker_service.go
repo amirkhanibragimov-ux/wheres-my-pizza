@@ -62,7 +62,7 @@ func (service *workerService) Heartbeat(ctx context.Context, name string) error 
 
 	service.logger.Debug(ctx, "heartbeat_sent", "Worker heartbeat sent", map[string]any{
 		"name": name,
-		"at":   time.Now().UTC().Format(time.RFC3339Nano),
+		"at":   time.Now().UTC().Format(time.RFC3339),
 	})
 
 	return nil

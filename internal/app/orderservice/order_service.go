@@ -15,23 +15,19 @@ import (
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/logger"
 )
 
-type Publisher interface {
-	Publish(exchange, routingKey string, body []byte, priority uint8) error
-}
-
-// Service implements ports.OrderService.
+// Service implements ports.OrderService interface.
 type Service struct {
 	uow       ports.UnitOfWork
 	repo      ports.OrderRepository
-	publisher Publisher
+	publisher ports.Publisher
 	logger    *logger.Logger
 }
 
 // New creates a new OrderService with the required dependencies.
-func New(
+func NewOrderService(
 	uow ports.UnitOfWork,
 	repo ports.OrderRepository,
-	publisher Publisher,
+	publisher ports.Publisher,
 	logger *logger.Logger,
 ) ports.OrderService {
 	return &Service{

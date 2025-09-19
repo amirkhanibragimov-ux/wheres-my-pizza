@@ -48,7 +48,7 @@ func Run(ctx context.Context, port int, maxConcurrent int) error {
 	pub := &rabbitmq.MQPublisher{Client: rmq}
 	uow := pg.NewUnitOfWork(pool)
 	repo := pg.NewOrdersRepo()
-	svc := service.New(uow, repo, logger, pub)
+	svc := service.NewOrderService(uow, repo, pub, logger)
 
 	// set up HTTP handler
 	h := service.NewOrderHTTPHandler(svc, logger)
