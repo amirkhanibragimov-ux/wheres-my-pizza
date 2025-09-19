@@ -28,10 +28,12 @@ type Client struct {
 	reconnect chan struct{}
 }
 
+// MQPublisher is a simple RabbitMQ publisher using the Client.
 type MQPublisher struct {
 	Client *Client
 }
 
+// Publish sends a message to the specified RabbitMQ exchange and routing key.
 func (p *MQPublisher) Publish(exchange, routingKey string, body []byte, priority uint8) error {
 	return p.Client.PublishMessage(exchange, routingKey, body, priority)
 }
@@ -170,6 +172,7 @@ func (client *Client) Close() {
 
 // --- internals ---
 
+// connectOnce tries to connect and set up topology once.
 func (client *Client) connectOnce(ctx context.Context) error {
 	start := time.Now().UTC()
 
@@ -231,6 +234,7 @@ func (client *Client) connectOnce(ctx context.Context) error {
 	return nil
 }
 
+// watch runs in background and attempts reconnects with exponential backoff.
 func (client *Client) watch() {
 	// reconnect loop with exponential backoff
 	backoff := time.Second
@@ -274,6 +278,7 @@ func (client *Client) watch() {
 	}
 }
 
+// declareTopology declares exchanges, queues, and bindings.
 func declareTopology(ch *amqp.Channel) error {
 	// exchanges
 	if err := ch.ExchangeDeclare("orders_topic", "topic", true, false, false, false, nil); err != nil {
