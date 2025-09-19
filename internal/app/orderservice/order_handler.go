@@ -3,6 +3,8 @@ package orderservice
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -29,9 +31,7 @@ func NewOrderHTTPHandler(svc ports.OrderService, logger *logger.Logger) *OrderHT
 
 // Register mounts the POST /orders route on the provided mux.
 func (handler *OrderHTTPHandler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("POST /orders", func(w http.ResponseWriter, r *http.Request) {
-		handler.handleCreateOrder(r.Context(), w, r)
-	})
+	mux.HandleFunc("POST /orders", handler.handleCreateOrder)
 }
 
 // --- Request/Response DTOs (HTTP boundary) ---
@@ -59,11 +59,16 @@ type createOrderResponse struct {
 
 // --- Handler ---
 
-func (handler *OrderHTTPHandler) handleCreateOrder(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	// guard: content type + size
+func (handler *OrderHTTPHandler) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
+
+	// generate a context with request ID
+	ctx := handler.withReqID(r.Context(), r)
+
+	// check the size of the request body
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB
 	defer r.Body.Close()
 
+	// check the content type
 	if ct := r.Header.Get("Content-Type"); ct != "" && !strings.HasPrefix(ct, "application/json") {
 		handler.httpError(ctx, w, http.StatusUnsupportedMediaType, "Content-Type must be application/json", errors.New("unsupported content type: "+ct))
 		return
@@ -85,6 +90,7 @@ func (handler *OrderHTTPHandler) handleCreateOrder(ctx context.Context, w http.R
 		return
 	}
 
+	// log the incoming request
 	handler.logger.Debug(ctx,
 		"order_received",
 		"new order request received",
@@ -102,7 +108,7 @@ func (handler *OrderHTTPHandler) handleCreateOrder(ctx context.Context, w http.R
 	// call application service (validates, persists, numbers order)
 	placed, err := handler.svc.PlaceOrder(ctxWithTimeout, cmd)
 	if err != nil {
-		// Distinguish DB failures from validation errors.
+		// distinguish DB failures from validation errors
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			handler.httpError(ctxWithTimeout, w, http.StatusInternalServerError, "database error", err)
@@ -163,7 +169,7 @@ func parseOrderType(s string) (orders.OrderType, bool) {
 
 // httpError sends a JSON error response with a message.
 func (handler *OrderHTTPHandler) httpError(ctx context.Context, w http.ResponseWriter, status int, msg string, err error) {
-	// Map status -> action
+	// map status -> action
 	action := "request_failed"
 	if status >= 500 {
 		action = "http_internal_error"
@@ -181,24 +187,39 @@ func (handler *OrderHTTPHandler) httpError(ctx context.Context, w http.ResponseW
 }
 
 // jsonResponse takes any type of data and encode it to HTTP response.
-func (h *OrderHTTPHandler) jsonResponse(ctx context.Context, w http.ResponseWriter, status int, data any) {
-	// Encode to buffer first so we can control status on failure.
+func (handler *OrderHTTPHandler) jsonResponse(ctx context.Context, w http.ResponseWriter, status int, data any) {
+	// encode to buffer first so we can control status on failure
 	var buf []byte
 	var err error
 
 	if data != nil {
 		buf, err = json.Marshal(data)
 		if err != nil {
-			h.logger.Error(ctx, "response_encode_failed", "failed to encode response", err)
+			handler.logger.Error(ctx, "response_encode_failed", "failed to encode response", err)
 			http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
 			return
 		}
 	} else {
-		// Empty JSON body if you want; or leave it blank for 204 cases.
 		buf = []byte("{}")
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_, _ = w.Write(buf)
+}
+
+// withReqID extracts or generates a request ID and adds it to the context.
+func (handler *OrderHTTPHandler) withReqID(ctx context.Context, r *http.Request) context.Context {
+	reqID := r.Header.Get("X-Request-ID")
+	if reqID == "" {
+		reqID = randID()
+	}
+	return handler.logger.WithRequestID(ctx, reqID)
+}
+
+// randID generates a random 24-char hex string suitable for request IDs.
+func randID() string {
+	var b [12]byte
+	_, _ = rand.Read(b[:])
+	return hex.EncodeToString(b[:])
 }

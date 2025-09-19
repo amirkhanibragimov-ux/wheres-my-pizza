@@ -24,12 +24,7 @@ type Service struct {
 }
 
 // New creates a new OrderService with the required dependencies.
-func NewOrderService(
-	uow ports.UnitOfWork,
-	repo ports.OrderRepository,
-	publisher ports.Publisher,
-	logger *logger.Logger,
-) ports.OrderService {
+func NewOrderService(uow ports.UnitOfWork, repo ports.OrderRepository, publisher ports.Publisher, logger *logger.Logger) ports.OrderService {
 	return &Service{
 		uow:       uow,
 		repo:      repo,

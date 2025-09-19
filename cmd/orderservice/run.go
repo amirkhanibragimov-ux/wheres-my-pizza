@@ -37,6 +37,7 @@ func Run(ctx context.Context, port int, maxConcurrent int) error {
 	}
 	defer pool.Close()
 
+	// connect to RabbitMQ
 	rmq, err := rabbitmq.ConnectRabbitMQ(ctx, cfg, logger)
 	if err != nil {
 		logger.Error(ctx, "rabbitmq_connection_failed", "Failed to connect to RabbitMQ", err)
@@ -51,9 +52,8 @@ func Run(ctx context.Context, port int, maxConcurrent int) error {
 	svc := service.NewOrderService(uow, repo, pub, logger)
 
 	// set up HTTP handler
-	h := service.NewOrderHTTPHandler(svc, logger)
 	mux := http.NewServeMux()
-	h.Register(mux)
+	service.NewOrderHTTPHandler(svc, logger).Register(mux)
 
 	// Concurrency limiter (global) — blocks when capacity is full.
 	handler := withConcurrencyLimit(maxConcurrent, mux)
@@ -62,13 +62,14 @@ func Run(ctx context.Context, port int, maxConcurrent int) error {
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", port),
 		Handler:           handler,
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      15 * time.Second,
-		IdleTimeout:       60 * time.Second,
-		BaseContext:       func(net.Listener) context.Context { return ctx },
+		ReadHeaderTimeout: 5 * time.Second,                                   // time to read headers
+		ReadTimeout:       10 * time.Second,                                  // time to read full request body
+		WriteTimeout:      15 * time.Second,                                  // full response write timeout
+		IdleTimeout:       60 * time.Second,                                  // keep-alive window
+		BaseContext:       func(net.Listener) context.Context { return ctx }, // pass base ctx to all handlers
 	}
 
+	// log service start
 	logger.Info(ctx, "service_started",
 		fmt.Sprintf("Order Service started on port %d", port),
 		map[string]any{"port": port, "max_concurrent": maxConcurrent},
@@ -77,7 +78,6 @@ func Run(ctx context.Context, port int, maxConcurrent int) error {
 	// start the server in a background goroutine
 	errCh := make(chan error, 1)
 	go func() {
-		// http.ErrServerClosed is returned on Shutdown; treat that as clean exit
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errCh <- err
 			return
@@ -85,6 +85,7 @@ func Run(ctx context.Context, port int, maxConcurrent int) error {
 		errCh <- nil
 	}()
 
+	// wait for context cancellation or server error
 	select {
 	case <-ctx.Done():
 		// graceful HTTP shutdown on context cancel
@@ -93,7 +94,10 @@ func Run(ctx context.Context, port int, maxConcurrent int) error {
 		_ = srv.Shutdown(shCtx) // err ignored; srv closed in any case
 	case err := <-errCh:
 		// server returned a terminal error at startup or during run
-		return err
+		if err != nil && err != http.ErrServerClosed {
+			return err
+		}
+		return nil
 	}
 
 	return nil
