@@ -87,12 +87,13 @@ func (repo *OrdersRepo) GetByNumber(ctx context.Context, number string) (*orders
 	var typeStr string
 	var status string
 	err = tx.QueryRow(ctx, `
-		SELECT id, number, customer_name, type, table_number, delivery_address, (total_amount * 100)::bigint, priority, status, created_at, updated_at
+		SELECT id, number, customer_name, type, table_number, delivery_address, (total_amount * 100)::bigint, 
+		priority, status, processed_by, created_at, updated_at
 		FROM orders
 		WHERE number = $1
 	`, number).Scan(
 		&order.ID, &order.Number, &order.CustomerName, &typeStr, &order.TableNumber, &order.DeliveryAddress,
-		&order.TotalAmount, &order.Priority, &status, &order.CreatedAt, &order.UpdatedAt,
+		&order.TotalAmount, &order.Priority, &status, &order.ProcessedBy, &order.CreatedAt, &order.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err

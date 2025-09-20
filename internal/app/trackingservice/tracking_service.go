@@ -33,7 +33,7 @@ func (service *Service) GetOrderStatus(ctx context.Context, number string) (*por
 	err := service.uow.WithinTx(ctx, func(txCtx context.Context) error {
 		order, err := service.orders.GetByNumber(txCtx, number)
 		if err != nil {
-			service.logger.Error(ctx, "db_transaction_failed", "failed to get order by number", err)
+			service.logger.Error(ctx, "db_query_failed", "Failed to get order by number", err)
 			return err
 		}
 
@@ -45,20 +45,15 @@ func (service *Service) GetOrderStatus(ctx context.Context, number string) (*por
 			est = &t
 		}
 
-		// processed_by is not loaded by current repo; return nil unless populated
-		var processedBy *string
-		if order.ProcessedBy != nil && *order.ProcessedBy != "" {
-			p := order.ProcessedBy
-			processedBy = p
-		}
-
+		// build the response view
 		out = &ports.OrderStatusView{
 			OrderNumber:         order.Number,
 			CurrentStatus:       order.Status,
 			UpdatedAt:           &order.UpdatedAt,
 			EstimatedCompletion: est,
-			ProcessedBy:         processedBy,
+			ProcessedBy:         order.ProcessedBy,
 		}
+
 		return nil
 	})
 	if err != nil {
@@ -75,7 +70,8 @@ func (service *Service) GetOrderHistory(ctx context.Context, number string) ([]o
 		var err error
 		hist, err = service.orders.ListHistory(txCtx, number)
 		if err != nil {
-			service.logger.Error(ctx, "db_transaction_failed", "failed to list order history", err)
+			service.logger.Error(ctx, "db_query_failed", "Failed to list order history", err)
+			return err
 		}
 
 		return nil
@@ -92,7 +88,7 @@ func (service *Service) ListWorkers(ctx context.Context, offlineIfOlderThan time
 	err := service.uow.WithinTx(ctx, func(txCtx context.Context) error {
 		workers, err := service.workers.ListAll(txCtx)
 		if err != nil {
-			service.logger.Error(ctx, "db_transaction_failed", "failed to list all workers", err)
+			service.logger.Error(ctx, "db_query_failed", "Failed to list all workers", err)
 			return err
 		}
 

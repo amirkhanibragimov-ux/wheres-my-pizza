@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 	"time"
 
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/ports"
@@ -70,14 +69,18 @@ func (handler *TrackingHTTPHandler) getOrderHistory(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// match spec shape: status, timestamp, changed_by
+	if len(hist) == 0 {
+		handler.writeErr(w, http.StatusNotFound, "not found")
+		return
+	}
+
+	// build the response view
 	out := make([]map[string]any, 0, len(hist))
 	for i := range hist {
 		out = append(out, map[string]any{
 			"status":     string(hist[i].Status),
 			"timestamp":  hist[i].ChangedAt,
 			"changed_by": hist[i].ChangedBy,
-			"notes":      hist[i].Notes,
 		})
 	}
 	handler.writeJSON(w, http.StatusOK, out)
@@ -88,24 +91,16 @@ func (handler *TrackingHTTPHandler) listWorkers(w http.ResponseWriter, r *http.R
 	ctx := handler.withReqID(r.Context(), r)
 	handler.logger.Debug(ctx, "request_received", "GET /workers/status", nil)
 
+	// list workers from the service with a default offline_after duration
 	offlineAfter := 60 * time.Second // default ~= 2 * 30s heartbeat
-	if q := r.URL.Query().Get("offline_after"); q != "" {
-		// allow "60s" or a plain number in seconds
-		if d, err := time.ParseDuration(q); err == nil {
-			offlineAfter = d
-		} else if secs, err2 := strconv.Atoi(q); err2 == nil {
-			offlineAfter = time.Duration(secs) * time.Second
-		}
-	}
-
 	now := time.Now().UTC()
 	views, err := handler.svc.ListWorkers(ctx, offlineAfter, now)
 	if err != nil {
-		handler.logger.Error(ctx, "db_query_failed", "Failed to list workers", err)
 		handler.writeErr(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
+	// build the response view
 	out := make([]map[string]any, 0, len(views))
 	for i := range views {
 		out = append(out, map[string]any{
