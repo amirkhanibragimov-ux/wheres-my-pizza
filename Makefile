@@ -1,6 +1,9 @@
 .PHONY: config1 config2 build \
 		prune clean-containers down up rebuild clean all \
-		orderservice kitchenworker1 kitchenworker2 kitchenworker3
+		orderservice order \
+		kitchenworker1 kitchenworker2 kitchenworker3 worker1 worker2 worker3 \
+		trackingservice tracking \
+		notificationservice notification
 
 # ----------------- CONFIGURATION -------------------
 
@@ -41,22 +44,29 @@ rebuild:
 	docker-compose up --build
 
 # Convenience bundle:  clean containers, volumes, and images
-clean: prune clean-containers down
+clean: clean-containers down prune 
 
 # Convenience bundle: clean everything and rebuild
-all: prune clean-containers down rebuild
+all: clean-containers down prune rebuild
 
 
 # ----------------- RUN COMMANDS -------------------
-orderservice:
+orderservice order:
 	go build -o restaurant-system .
 	./restaurant-system --mode=order-service --port=3000 2>&1 | jq .
 
-kitchenworker1:
+kitchenworker1 worker1:
 	./restaurant-system --mode=kitchen-worker --worker-name="chef_anna" --prefetch=1 2>&1 | jq . &
 
-kitchenworker2:
+kitchenworker2 worker2:
 	./restaurant-system --mode=kitchen-worker --worker-name="chef_mario" --order-types="dine_in" 2>&1 | jq . &
 
-kitchenworker3:
+kitchenworker3 worker3:
 	./restaurant-system --mode=kitchen-worker --worker-name="chef_luigi" --order-types="delivery" 2>&1 | jq . &
+
+trackingservice tracking:
+	./restaurant-system --mode=tracking-service --port=3002 2>&1 | jq .
+
+notificationservice notification:
+	./restaurant-system --mode=notification-subscriber 2>&1 | jq .
+
