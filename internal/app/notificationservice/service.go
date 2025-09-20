@@ -123,7 +123,14 @@ func handleDelivery(ctx context.Context, logger *logger.Logger, d amqp.Delivery)
 	})
 
 	// print human-readable line to stdout
-	fmt.Println(renderHuman(update))
+	// fmt.Println(renderHuman(update))
+	// logger.Info(ctx, "notification_human", "received_new_notification", map[string]any{
+	// 	"message": renderHuman(update),
+	// })
+	bytes, _ := json.Marshal(map[string]any{
+		"message": renderHuman(update),
+	})
+	fmt.Println(string(bytes))
 
 	// ack on success
 	if err := d.Ack(false); err != nil {
