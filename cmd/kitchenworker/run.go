@@ -11,7 +11,7 @@ import (
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/logger"
 	pg "git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/postgres"
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/rabbitmq"
-	"github.com/rabbitmq/amqp091-go"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func Run(ctx context.Context, workerName string, orderTypes *string, heartbeat, prefetch int) error {
@@ -157,8 +157,10 @@ func Run(ctx context.Context, workerName string, orderTypes *string, heartbeat, 
 						}
 						goto resubscribe
 					}
+
+					// process the message in a separate goroutine to allow concurrent handling
 					wg.Add(1)
-					go func(d amqp091.Delivery) {
+					go func(d amqp.Delivery) {
 						defer wg.Done()
 						handleDelivery(runCtx, logger, processor, workerName, wtype, d)
 					}(d)

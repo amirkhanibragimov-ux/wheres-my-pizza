@@ -56,13 +56,13 @@ orderservice order:
 	./restaurant-system --mode=order-service --port=3000 2>&1 | jq .
 
 kitchenworker1 worker1:
-	./restaurant-system --mode=kitchen-worker --worker-name="chef_anna" --prefetch=1 2>&1 | jq . &
+	./restaurant-system --mode=kitchen-worker --worker-name="chef_anna" --prefetch=1 2>&1 | jq .
 
 kitchenworker2 worker2:
-	./restaurant-system --mode=kitchen-worker --worker-name="chef_mario" --order-types="dine_in" 2>&1 | jq . &
+	./restaurant-system --mode=kitchen-worker --worker-name="chef_mario" --order-types="dine_in" 2>&1 | jq .
 
 kitchenworker3 worker3:
-	./restaurant-system --mode=kitchen-worker --worker-name="chef_luigi" --order-types="delivery" 2>&1 | jq . &
+	./restaurant-system --mode=kitchen-worker --worker-name="chef_luigi" --order-types="delivery" 2>&1 | jq .
 
 trackingservice tracking:
 	./restaurant-system --mode=tracking-service --port=3002 2>&1 | jq .

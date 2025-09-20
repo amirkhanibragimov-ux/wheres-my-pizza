@@ -121,14 +121,14 @@ func (service *Service) PlaceOrder(ctx context.Context, cmd ports.CreateOrderCom
 		now := time.Now().UTC()
 		seq, err := service.repo.NextOrderSeq(txCtx, now)
 		if err != nil {
-			service.logger.Error(ctx, "db_transaction_failed", "failed to get next order sequence", err)
+			service.logger.Error(ctx, "db_transaction_failed", "Failed to get next order sequence", err)
 			return err
 		}
 		order.Number = fmt.Sprintf("ORD_%s_%03d", now.Format("20060102"), seq)
 
 		// add order to the database
 		if err := service.repo.CreateOrder(txCtx, &order); err != nil {
-			service.logger.Error(ctx, "db_transaction_failed", "failed to create order", err)
+			service.logger.Error(ctx, "db_transaction_failed", "Failed to create order", err)
 			return err
 		}
 
@@ -172,13 +172,13 @@ func (service *Service) PlaceOrder(ctx context.Context, cmd ports.CreateOrderCom
 
 	body, err := json.Marshal(msg)
 	if err != nil {
-		service.logger.Error(ctx, "rabbitmq_publish_failed", "failed to encode order message", err)
+		service.logger.Error(ctx, "rabbitmq_publish_failed", "Failed to encode order message", err)
 		return placed, nil // Do not fail the HTTP flow because DB commit already succeeded
 	}
 
 	routingKey := fmt.Sprintf("kitchen.%s.%d", string(cmd.Type), placed.Priority)
-	if pubErr := service.publisher.Publish("orders_topic", routingKey, body, uint8(placed.Priority)); pubErr != nil {
-		service.logger.Error(ctx, "rabbitmq_publish_failed", "failed to publish order message", pubErr)
+	if err := service.publisher.Publish("orders_topic", routingKey, body, uint8(placed.Priority)); err != nil {
+		service.logger.Error(ctx, "rabbitmq_publish_failed", "Failed to publish order message", err)
 	} else {
 		service.logger.Debug(ctx, "order_published", "order published to RabbitMQ", map[string]any{
 			"order_number": placed.OrderNumber,

@@ -195,7 +195,7 @@ func (handler *OrderHTTPHandler) jsonResponse(ctx context.Context, w http.Respon
 	if data != nil {
 		buf, err = json.Marshal(data)
 		if err != nil {
-			handler.logger.Error(ctx, "response_encode_failed", "failed to encode response", err)
+			handler.logger.Error(ctx, "response_encode_failed", "Failed to encode response", err)
 			http.Error(w, `{"error":"failed to encode response"}`, http.StatusInternalServerError)
 			return
 		}

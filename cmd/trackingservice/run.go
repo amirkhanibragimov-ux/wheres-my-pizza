@@ -15,8 +15,8 @@ import (
 )
 
 func Run(ctx context.Context, port int) error {
-	// set up a new logger for kitchen worker with a static request ID for startup logs
-	logger := logger.NewLogger("kitchen-worker")
+	// set up a new logger for tracking service with a static request ID for startup logs
+	logger := logger.NewLogger("tracking-service")
 	ctx = logger.WithRequestID(ctx, "startup-001")
 
 	// load a config from file

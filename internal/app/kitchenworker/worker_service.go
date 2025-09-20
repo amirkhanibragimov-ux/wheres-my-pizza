@@ -2,6 +2,7 @@ package kitchenworker
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/ports"
@@ -38,8 +39,9 @@ func (service *workerService) RegisterOrExit(ctx context.Context, name, typ stri
 	}
 	if !ok {
 		// duplicate instance online with the same name
-		service.logger.Error(ctx, "worker_duplicate", "Worker with this name is already online; terminating", nil)
-		return false, nil
+		service.logger.Error(ctx, "worker_duplicate", "Worker with this name is already online; terminating",
+			fmt.Errorf("worker with this name is already online: %q", name))
+		return false, fmt.Errorf("worker with this name is already online: %q", name)
 	}
 
 	service.logger.Info(ctx, "worker_registered", "Worker registered as online", map[string]any{

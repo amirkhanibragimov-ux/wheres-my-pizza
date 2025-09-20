@@ -263,7 +263,7 @@ func (client *Client) watch() {
 				}
 
 				// log retry attempt and sleep with backoff
-				client.logger.Error(client.logCtx, "retry_attempted", fmt.Sprintf("RabbitMQ reconnect failed: %v", err), err)
+				client.logger.Error(client.logCtx, "retry_attempted", "Failed to reconnect to RabbitMQ", err)
 
 				// cap the backoff
 				time.Sleep(backoff)

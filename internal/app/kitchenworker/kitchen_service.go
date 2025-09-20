@@ -63,7 +63,7 @@ func (service *kitchenService) StartCooking(ctx context.Context, workerName stri
 		return nil
 	})
 	if err != nil {
-		service.logger.Error(ctx, "db_transaction_failed", "failed to set status to cooking", err)
+		service.logger.Error(ctx, "db_transaction_failed", "Failed to set status to cooking", err)
 		return 0, Retryable(err)
 	}
 	if newStatus == "" {
@@ -73,7 +73,7 @@ func (service *kitchenService) StartCooking(ctx context.Context, workerName stri
 
 	// publish status update
 	if err := service.publishStatusUpdate(msg.OrderNumber, oldStatus, newStatus, workerName, now, service.cookingDuration(msg.OrderType)); err != nil {
-		service.logger.Error(ctx, "rabbitmq_publish_failed", "failed to publish status update", err)
+		service.logger.Error(ctx, "rabbitmq_publish_failed", "Failed to publish status update", err)
 		// continue anyway; DB commit already succeeded
 	}
 
@@ -113,7 +113,7 @@ func (service *kitchenService) FinishCooking(ctx context.Context, workerName str
 		return nil
 	})
 	if err != nil {
-		service.logger.Error(ctx, "db_transaction_failed", "failed to set status to ready", err)
+		service.logger.Error(ctx, "db_transaction_failed", "Failed to set status to ready", err)
 		return Retryable(err)
 	}
 	if newStatus == "" {
@@ -123,7 +123,7 @@ func (service *kitchenService) FinishCooking(ctx context.Context, workerName str
 
 	// publish status update
 	if err = service.publishStatusUpdate(msg.OrderNumber, oldStatus, newStatus, workerName, now, 0); err != nil {
-		service.logger.Error(ctx, "rabbitmq_publish_failed", "failed to publish status update", err)
+		service.logger.Error(ctx, "rabbitmq_publish_failed", "Failed to publish status update", err)
 	}
 
 	service.logger.Debug(ctx, "order_completed", "Order set to ready", map[string]any{

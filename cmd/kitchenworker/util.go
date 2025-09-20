@@ -11,7 +11,7 @@ import (
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/contracts"
 	"git.platform.alem.school/amibragim/wheres-my-pizza/internal/shared/logger"
 
-	"github.com/rabbitmq/amqp091-go"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // detectWorkerType returns a canonical CSV list of supported order types.
@@ -75,7 +75,7 @@ func handleDelivery(
 	logger *logger.Logger,
 	processor *service.Processor,
 	workerName, workerTypes string,
-	d amqp091.Delivery,
+	d amqp.Delivery,
 ) {
 	// decode the message
 	var msg contracts.OrderMessage
