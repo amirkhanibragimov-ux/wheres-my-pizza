@@ -76,14 +76,17 @@ func (client *Client) NewConsumerChannel(prefetch int) (*amqp.Channel, error) {
 	// open a new channel
 	ch, err := conn.Channel()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("rabbitmq: open channel: %w", err)
 	}
 
 	// set prefetch if requested
+	if prefetch < 0 {
+		prefetch = 0
+	}
 	if prefetch > 0 {
 		if err := ch.Qos(prefetch, 0, false); err != nil {
-			ch.Close()
-			return nil, err
+			_ = ch.Close()
+			return nil, fmt.Errorf("rabbitmq: set QoS (prefetch=%d): %w", prefetch, err)
 		}
 	}
 

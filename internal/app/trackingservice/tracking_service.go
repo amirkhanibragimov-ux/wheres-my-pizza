@@ -66,7 +66,6 @@ func (service *Service) GetOrderStatus(ctx context.Context, number string) (*por
 func (service *Service) GetOrderHistory(ctx context.Context, number string) ([]orders.StatusLog, error) {
 	var hist []orders.StatusLog
 	err := service.uow.WithinTx(ctx, func(txCtx context.Context) error {
-
 		var err error
 		hist, err = service.orders.ListHistory(txCtx, number)
 		if err != nil {

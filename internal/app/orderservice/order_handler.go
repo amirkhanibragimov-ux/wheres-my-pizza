@@ -60,7 +60,6 @@ type createOrderResponse struct {
 // --- Handler ---
 
 func (handler *OrderHTTPHandler) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
-
 	// generate a context with request ID
 	ctx := handler.withReqID(r.Context(), r)
 
