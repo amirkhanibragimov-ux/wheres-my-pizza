@@ -212,28 +212,3 @@ func parseYAML(r io.Reader, cfg *Config) error {
 
 	return nil
 }
-
-// Helpers (optional): Build DSNs for pgxpool and AMQP clients.
-func (config *Config) PostgresURL() string {
-	// postgres://user:pass@host:port/dbname
-	user := urlEscape(config.Database.User)
-	pass := urlEscape(config.Database.Password)
-	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
-		user, pass, config.Database.Host, config.Database.Port, config.Database.Name,
-	)
-}
-
-func (config *Config) AMQPURL() string {
-	// amqp://user:pass@host:port/
-	user := urlEscape(config.RabbitMQ.User)
-	pass := urlEscape(config.RabbitMQ.Password)
-	return fmt.Sprintf("amqp://%s:%s@%s:%d/",
-		user, pass, config.RabbitMQ.Host, config.RabbitMQ.Port,
-	)
-}
-
-func urlEscape(s string) string {
-	// very small escape set; for full safety use url.UserPassword when allowed.
-	r := strings.NewReplacer(":", "%3A", "@", "%40", "/", "%2F")
-	return r.Replace(s)
-}

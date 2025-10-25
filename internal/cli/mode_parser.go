@@ -38,10 +38,10 @@ func ParseMode(args []string) (string, []string, error) {
 	var mode string
 	var out []string
 
-	for i := 0; i < len(args); i++ {
+	for i := range args {
 		arg := args[i]
-		if strings.HasPrefix(arg, "--mode=") {
-			mode = strings.TrimPrefix(arg, "--mode=")
+		if after, ok := strings.CutPrefix(arg, "--mode="); ok {
+			mode = after
 			continue
 		}
 
